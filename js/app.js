@@ -17,7 +17,7 @@ import { DateUtils } from "./pure/date-utils.js";
 import { DataModule } from "./data.js";
 import { LoggerModule } from "./logger.js";
 import { ICONS } from "./icon-config.js";
-import { APP_VERSION, loadConfig, saveConfig, TOAST_MS, SCROLL } from "./config.js";
+import { APP_VERSION, loadConfig, saveConfig, getPref, TOAST_MS, SCROLL } from "./config.js";
 import { showToast } from "./ui/toast.js";
 import { bindTabs } from "./ui/tabs.js";
 import { renderCalendar, renderWeekStrip, setCalendarDate, bindCalendarEvents } from "./ui/calendar.js";
@@ -26,6 +26,7 @@ import { openForm, bindFormEvents } from "./ui/form.js";
 import { bindDatePickerEvents } from "./ui/date-picker.js";
 import { bindTimeWheelEvents } from "./ui/time-wheel.js";
 import { initStatsPage, renderStatsPage } from "./ui/stats-page.js";
+import { initSettingsPage, renderSettingsPage, applyChartColors } from "./ui/settings-page.js";
 import { bindDateRangePickerEvents } from "./ui/date-range-picker.js";
 
 /* ============ 图标注入（静态 data-icon 占位） ============ */
@@ -153,6 +154,7 @@ function bindScrollLink() {
 function init() {
   renderStaticIcons();
   loadConfig(); // 生成/读取应用配置（localStorage，plan 5.2）
+  applyChartColors(getPref("heatmapColor")); // 启动即应用已保存的图表配色（--chart-1..5，页面刷新后需重建）
   bindTabs();
   bindCalendarEvents();
   bindListEvents();
@@ -162,10 +164,20 @@ function init() {
   bindScrollLink();
   initStatsPage();
   bindDateRangePickerEvents();
+  initSettingsPage();
 
-  // 切到统计 Tab 时渲染/刷新统计页
+  // 切到统计 Tab 时渲染/刷新统计页；切到设置 Tab 时渲染设置页（选项选中态/色板/版本）
   bus.on("tab-changed", (name) => {
     if (name === "stats") renderStatsPage();
+    if (name === "settings") renderSettingsPage();
+  });
+
+  // 设置变更（周起始日/排序/热力图主色）即时生效：重渲染日历、单周条与列表
+  // （统计页热力图主色变量已在 settings-page 内直接应用，切 Tab 时自然生效）
+  bus.on("config-changed", () => {
+    renderCalendar();
+    renderWeekStrip();
+    renderTimeline();
   });
 
   // 数据变更后刷新日历记录标记与单周条（列表由 list.js 内部自行刷新）

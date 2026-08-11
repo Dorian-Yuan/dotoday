@@ -145,12 +145,87 @@
       </div>
     </div>
 
-    <!-- ===== 设置页（v0.1.0 占位） ===== -->
+    <!-- ===== 设置页（v0.5.0）：分组卡片 + 独立滚动容器 ===== -->
     <section id="page-settings" class="page">
-      <div class="placeholder-page">
-        <div class="placeholder-art" data-icon="settings" aria-hidden="true"></div>
-        <h2>设置功能即将上线</h2>
-        <p>排序方式、标签管理与数据备份<br>会在后续版本中提供</p>
+      <div class="settings-scroll" id="settings-scroll">
+
+        <!-- 1. 通用设置 -->
+        <section class="card settings-group">
+          <h3 class="settings-group-title">通用设置</h3>
+
+          <!-- 周起始日 -->
+          <div class="settings-row">
+            <div class="settings-row-main">
+              <span class="settings-row-label">周起始日</span>
+              <span class="settings-row-hint">日历与统计按周对齐的起始日</span>
+            </div>
+            <div class="settings-options" data-pref="weekStartDay">
+              <button type="button" class="chip" data-value="monday">周一</button>
+              <button type="button" class="chip" data-value="sunday">周日</button>
+            </div>
+          </div>
+
+          <!-- 列表排序（选项多，上下结构：标签上方、chips 整行下方） -->
+          <div class="settings-row settings-row-stack">
+            <div class="settings-row-main">
+              <span class="settings-row-label">列表排序</span>
+              <span class="settings-row-hint">记录列表的默认排列顺序</span>
+            </div>
+            <div class="settings-options" data-pref="defaultSortOrder">
+              <button type="button" class="chip" data-value="dateDesc">时间倒序</button>
+              <button type="button" class="chip" data-value="dateAsc">时间正序</button>
+              <button type="button" class="chip" data-value="rating">评分排序</button>
+              <button type="button" class="chip" data-value="tag">标签排序</button>
+            </div>
+          </div>
+
+          <!-- 图表配色（7 色板，上下结构：标签上方、色板整行下方） -->
+          <div class="settings-row settings-row-stack">
+            <div class="settings-row-main">
+              <span class="settings-row-label">图表配色</span>
+              <span class="settings-row-hint">统计页图表的深浅配色</span>
+            </div>
+            <div class="settings-swatches" id="heatmap-swatches" role="radiogroup" aria-label="热力图主色"></div>
+          </div>
+        </section>
+
+        <!-- 2. 标签管理（框架占位） -->
+        <section class="card settings-group">
+          <h3 class="settings-group-title">标签管理</h3>
+          <p class="settings-placeholder">标签管理将在后续版本开放</p>
+        </section>
+
+        <!-- 3. 数据管理（框架占位） -->
+        <section class="card settings-group">
+          <h3 class="settings-group-title">数据管理</h3>
+          <p class="settings-placeholder">导入 / 导出 / 备份 / 日志将在后续版本开放</p>
+        </section>
+
+        <!-- 4. GitHub 同步（框架占位） -->
+        <section class="card settings-group">
+          <h3 class="settings-group-title">GitHub 同步</h3>
+          <p class="settings-placeholder">同步功能将在后续版本开放</p>
+        </section>
+
+        <!-- 5. 关于 -->
+        <section class="card settings-group">
+          <h3 class="settings-group-title">关于</h3>
+          <div class="settings-row">
+            <div class="settings-row-main">
+              <span class="settings-row-label">版本</span>
+              <span class="settings-row-hint">当前安装版本</span>
+            </div>
+            <span class="settings-value" id="settings-version"></span>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-main">
+              <span class="settings-row-label">开发者</span>
+              <span class="settings-row-hint">DoToday 的创作者</span>
+            </div>
+            <span class="settings-value">Hau</span>
+          </div>
+        </section>
+
       </div>
     </section>
 

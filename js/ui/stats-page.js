@@ -287,8 +287,8 @@ function renderRatingChart(records, range) {
     el.dataset.chartType = "rating";
     return;
   }
-  // 5 档铅笔红深浅（1 星最浅 → 5 星最深）
-  const colors = ["var(--accent-soft)", "var(--accent-mid)", "var(--accent)", "var(--accent-deep)", "var(--accent-deeper)"];
+  // 5 档图表色阶（1 星最浅 → 5 星最深，由设置页"图表配色"主色生成）
+  const colors = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
   const rows = data.map((d, i) => ({
     key: d.rating,
     label: `${d.rating}星`,
@@ -451,9 +451,9 @@ function renderPeriodChart(records, range) {
     el.dataset.chartType = "period";
     return;
   }
-  // 4 档：早/午/晚 铅笔红深浅三档 + 未记录灰阶（--text-muted 弱化区分）
+  // 4 档：早/午/晚 图表色阶三档 + 未记录灰阶（--text-muted 弱化区分）
   const labels = { morning: "早", afternoon: "午", evening: "晚", none: "未记录" };
-  const colors = { morning: "var(--accent-soft)", afternoon: "var(--accent-mid)", evening: "var(--accent-deep)" };
+  const colors = { morning: "var(--chart-1)", afternoon: "var(--chart-2)", evening: "var(--chart-3)" };
   const rows = data.map((d) => ({
     key: d.period,
     label: labels[d.period] || d.period,

@@ -1711,6 +1711,143 @@ textarea::placeholder,
   line-height: 1.8;
 }
 
+/* ============ 设置页（v0.5.0）：分组卡片 + 独立滚动容器 ============ */
+#page-settings {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+}
+#page-settings.active {
+  display: flex;
+}
+/* 设置页独立滚动容器（与统计页一致：页面不滚动，只滚动容器） */
+.settings-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 0 0;
+}
+/* 底部 padding 补偿 = tabbar 高度（同 .stats-scroll） */
+.settings-scroll::after {
+  content: "";
+  display: block;
+  height: calc(72px + env(safe-area-inset-bottom));
+}
+
+/* 分组卡片：与图表卡片同风格（浅虚线 + 手绘阴影） */
+.settings-group {
+  background: var(--surface);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  padding: 2px 14px 8px;
+  margin-bottom: 12px;
+}
+.settings-group-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  padding: 12px 0 2px;
+}
+
+/* 设置行：左说明右选项，两列对齐（右列固定，左列自适应） */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px dashed var(--line-soft); /* 行间浅虚线分隔（分组内） */
+}
+.settings-row:first-of-type {
+  border-top: none;
+}
+.settings-row-main {
+  min-width: 0;
+  flex: 0 0 auto; /* 绝不收缩：窄屏下不被选项列挤压导致文字竖排 */
+}
+.settings-row-label {
+  display: block;
+  font-size: 14px;
+  color: var(--text);
+}
+.settings-row-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+/* 排序行：选项多、窄屏必换行，改上下结构（标签上方整行、chips 下方整行左对齐），
+   任何宽度下整齐不散乱；桌面同样适用 */
+.settings-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.settings-row-stack .settings-row-main {
+  flex: 0 0 auto;
+}
+.settings-row-stack .settings-options {
+  width: 100%;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+}
+
+/* 选项区（右列 chip 组，可换行；换行后左对齐整齐排布） */
+.settings-options {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.settings-options .chip {
+  font-size: 12px;
+  padding: 3px 10px;
+}
+
+/* 热力图主色色板：圆点 + 选中描边（铅笔手绘感：双圈高亮） */
+.settings-swatches {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.color-dot {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px dashed var(--line-soft);
+  cursor: pointer;
+  transition: transform var(--dur);
+}
+.color-dot:hover {
+  transform: scale(1.15);
+}
+.color-dot.on {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--line); /* 纸色 + 铅笔线双圈 */
+}
+
+/* 框架占位文案 */
+.settings-placeholder {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  padding: 6px 0 8px;
+}
+
+/* 关于：右侧值 */
+.settings-value {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ============ 响应式（桌面） ============ */
 @media (min-width: 768px) {
   body {
@@ -1724,6 +1861,9 @@ textarea::placeholder,
     padding: 0 24px;
   }
   .stats-scroll::after {
+    height: 90px;
+  }
+  .settings-scroll::after {
     height: 90px;
   }
   #tabbar {
@@ -2146,20 +2286,20 @@ textarea::placeholder,
   padding: 3px 9px;
 }
 
-/* SVG 图表元素（铅笔手绘风 token） */
+/* SVG 图表元素（图表色阶 --chart-* 由设置页"图表配色"主色生成，默认回退铅笔红 --accent-*） */
 .chart-body .bar {
-  fill: var(--accent);
+  fill: var(--chart-3, var(--accent));
   opacity: 0.85;
 }
 .chart-body .trend-line {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--chart-3, var(--accent));
   stroke-width: 2;
   stroke-dasharray: 4 3; /* 手绘虚线趋势线 */
 }
 .chart-body .point {
   fill: var(--surface);
-  stroke: var(--accent);
+  stroke: var(--chart-3, var(--accent));
   stroke-width: 2;
 }
 .chart-body .grid-line {
@@ -2185,10 +2325,10 @@ textarea::placeholder,
   text-anchor: middle;
 }
 .chart-body .hbar {
-  fill: var(--accent);
+  fill: var(--chart-3, var(--accent));
   opacity: 0.85;
 }
-/* 热力图：4 级铅笔红深浅 + 细描边 */
+/* 热力图：4 级深浅（--chart-1/2/3 由设置页图表配色主色生成，默认回退铅笔红 --accent-*） + 细描边 */
 .chart-body .heat {
   stroke: var(--line-soft);
   stroke-width: 0.8;
@@ -2197,13 +2337,13 @@ textarea::placeholder,
   fill: var(--surface);
 }
 .chart-body .heat.h1 {
-  fill: var(--accent-soft);
+  fill: var(--chart-1, var(--accent-soft));
 }
 .chart-body .heat.h2 {
-  fill: var(--accent-mid);
+  fill: var(--chart-2, var(--accent-mid));
 }
 .chart-body .heat.h3 {
-  fill: var(--accent-deep);
+  fill: var(--chart-3, var(--accent-deep));
 }
 .chart-body .heat[data-future="1"] {
   opacity: 0.25;
@@ -2228,13 +2368,13 @@ textarea::placeholder,
   background: var(--surface);
 }
 .heat-legend .heat-lv.h1 {
-  background: var(--accent-soft);
+  background: var(--chart-1, var(--accent-soft));
 }
 .heat-legend .heat-lv.h2 {
-  background: var(--accent-mid);
+  background: var(--chart-2, var(--accent-mid));
 }
 .heat-legend .heat-lv.h3 {
-  background: var(--accent-deep);
+  background: var(--chart-3, var(--accent-deep));
 }
 .chart-click {
   cursor: pointer;
