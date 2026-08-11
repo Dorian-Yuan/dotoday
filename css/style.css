@@ -1,0 +1,2247 @@
+/* ============================================================
+   style.css —— DoToday 全站样式（铅笔手绘风）
+   主题 token 严格遵循计划文档 5.1（明/暗两套，prefers-color-scheme 跟随系统）
+   风格禁止项：渐变、大圆角（仅 4px）、高饱和霓虹色、玻璃拟态、重阴影、纯白背景、长动画
+
+   线条分类规则（plan 0.3.1 修订，全站统一）：
+   【外层深色虚线 2px dashed var(--line)】——容器级边框：
+     .sheet 弹层边框、.calendar 日历容器、.tl-card 记录卡片、.modal 弹层容器、
+     .empty-art/.placeholder-art 空态框、.toast/.month-float 浮层提示
+   【内部浅色虚线 1px dashed var(--line-soft)】——内部元素边框：
+     字段卡片/分隔线（.field）、输入框（.input-text/.picker-btn/textarea/.input-date 等）、
+     按钮（.btn-ghost/.icon-btn/.chip/.tag-chip/.ym-month）、滚轮（.wheel/.wheel-panel）、
+     Tab 栏（#tabbar）、工具栏（.batch-bar）、关闭确认条（.confirm-bar）等
+   【保留实线】——主按钮（.btn-primary 线色实底）、选中/危险态（accent 实线）、圆形装饰点
+   ============================================================ */
+
+/* ============ 主题 token（浅色） ============ */
+:root {
+  /* 颜色（plan 5.1 light） */
+  --bg: #f5f0e8;            /* 背景（纸张米色） */
+  --bg-secondary: #e8e2d8;  /* 次级背景（骨架屏等） */
+  --surface: #faf5ed;       /* 卡片 / 输入框表面 */
+  --line: #2c2c2c;          /* 铅笔线条（边框 / 主文字） */
+  --text: #2c2c2c;          /* 正文 */
+  --text-secondary: #5a5a5a;/* 辅文 */
+  --text-muted: #8a8a8a;    /* 弱化文字 */
+  --accent: #9c5236;        /* 点缀色（铅笔红：今天 / 星星 / 热力图） */
+  --accent-deep: #7c3f27;   /* 深红棕（热力图最高档 / 环形图深档） */
+  --accent-deeper: #5f2f1c; /* 更深红棕（环形图最深档） */
+  --shadow-color: rgba(44, 44, 44, 0.3); /* 手绘阴影 */
+
+  /* 派生（alpha 版，用于深浅标记与遮罩） */
+  --line-soft: #c9c2b2;     /* 浅色虚线色（内部小边框：输入框 / 按钮 / chip / 分隔线等） */
+  --accent-soft: rgba(156, 82, 54, 0.15);
+  --accent-mid: rgba(156, 82, 54, 0.4);
+  --mask: rgba(44, 44, 44, 0.35);
+
+  /* 边框 / 圆角 / 阴影（plan 5.1 border） */
+  --border-width: 2px;
+  --border-style: dashed;
+  --radius: 4px;
+  --border: 2px dashed var(--line);            /* 外层深色虚线（容器级边框） */
+  --border-soft: 1px dashed var(--line-soft);  /* 内部浅色虚线（输入框 / 按钮 / 分隔线） */
+  --shadow: 2px 2px 0 var(--shadow-color);
+
+  /* 字体（plan 5.1 font） */
+  --font: -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", serif;
+  --font-display: "Kaiti SC", "STKaiti", "KaiTi", "Noto Serif SC", serif; /* 手写 / 衬线感标题 */
+
+  /* 间距 / 动画（plan 5.1 spacing / animation） */
+  --space: 16px;
+  --gap: 10px;
+  --dur: 0.2s;
+
+  /* 滚动条配色 */
+  --scrollbar: rgba(44, 44, 44, 0.3);
+}
+
+/* ============ 主题 token（深色：深色纸张 + 浅色铅笔线条，角色反转） ============ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #211f1a;
+    --bg-secondary: #282520;
+    --surface: #26231d;
+    --line: #d9d3c5;
+    --text: #ece7da;
+    --text-secondary: #b6b0a1;
+    --text-muted: #8a8475;
+    --accent: #c98b6d;
+    --accent-deep: #a86f52;   /* 深色下热力图最高档 / 环形图深档 */
+    --accent-deeper: #8a5a40; /* 深色下环形图最深档 */
+    --shadow-color: rgba(0, 0, 0, 0.5);
+
+    --line-soft: #4a463d;   /* 深色浅色虚线色 */
+    --accent-soft: rgba(201, 139, 109, 0.18);
+    --accent-mid: rgba(201, 139, 109, 0.45);
+    --mask: rgba(0, 0, 0, 0.55);
+
+    --scrollbar: rgba(217, 211, 197, 0.3);
+  }
+}
+
+/* ============ 基础 ============ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* 禁止双指/双击缩放（配合 viewport user-scalable=no）：
+   touch-action: manipulation 同时消除双击缩放延迟与手势干扰 */
+html,
+body {
+  touch-action: manipulation;
+}
+
+body {
+  background-color: var(--bg);
+  /* 纸张纹理：SVG 噪点（feTurbulence），非 CSS 渐变，浅色下透明度低 */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feComponentTransfer><feFuncA type='linear' slope='0.045'/></feComponentTransfer></filter><rect width='120' height='120' filter='url(%23p)'/></svg>");
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  /* 固定视口高度：页面本身不滚动，滚动只发生在 timeline 容器内 */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    /* 深色纸张：噪点透明度略高，保持纸纹可见 */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feComponentTransfer><feFuncA type='linear' slope='0.07'/></feComponentTransfer></filter><rect width='120' height='120' filter='url(%23p)'/></svg>");
+  }
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea {
+  font-family: inherit;
+}
+
+/* 焦点态：手绘阴影（plan 2.2 交互状态） */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-mid);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* 滚动条（铅笔灰） */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+svg.ic {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ============ 布局 ============ */
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  height: 100vh; /* 固定视口高度链：body → #app → .page → flex 列 */
+  height: 100dvh;
+}
+
+.page {
+  display: none;
+  padding: 0 var(--space);
+}
+.page.active {
+  display: block;
+  animation: pageIn var(--dur) ease-out;
+}
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 记录页：flex 列布局（标题 → 日历容器 → timeline 独立滚动容器）
+   注意：display 必须挂在 .active 下（.page 默认 display:none 控制 Tab 显隐），
+   独立 ID 的 display:flex 会覆盖 .page 的隐藏规则导致记录页永远可见 */
+#page-record {
+  flex-direction: column;
+  height: 100%;
+}
+#page-record.active {
+  display: flex;
+}
+/* 顶部标题：flex 项固定（页面不滚动，无需 fixed/sticky） */
+.app-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px var(--space) 12px;
+  background: var(--bg); /* 不透明背景 */
+}
+.app-logo {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px dashed var(--line-soft); /* 内部结构：浅色虚线 */
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transform: rotate(-3deg);
+}
+.app-logo svg {
+  width: 24px;
+  height: 24px;
+}
+.app-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.app-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+/* ============ Tab 栏（文字 + SVG 图标，滑动动画） ============ */
+#tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px dashed var(--line-soft); /* Tab 栏：浅色虚线（内部结构） */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tab-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 33.3333%;
+  height: 3px;
+  background: var(--accent);
+  transition: transform var(--dur) ease-out;
+}
+.tab-item {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 0 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: color var(--dur);
+}
+.tab-item:hover {
+  opacity: 0.9;
+}
+.tab-item:active {
+  opacity: 0.8;
+}
+.tab-item.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+.tab-icon {
+  width: 22px;
+  height: 22px;
+}
+.tab-item.active .tab-icon svg {
+  stroke-width: 2.4; /* 激活图标铅笔加粗 */
+}
+.tab-text {
+  line-height: 1;
+}
+
+/* ============ 按钮 ============ */
+/* 主按钮：线色底 + 纸色字（plan 5.1 角色表） */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--line);
+  color: var(--bg);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: opacity var(--dur);
+}
+.btn-primary:hover {
+  opacity: 0.9;
+}
+.btn-primary:active {
+  opacity: 0.8;
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--shadow-color);
+}
+
+/* 辅按钮：浅色虚线描边透明底（plan 0.3.1 线条规则：按钮 → 浅色虚线） */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--line);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
+  transition: opacity var(--dur);
+}
+.btn-ghost:hover {
+  opacity: 0.9;
+}
+.btn-ghost:active {
+  opacity: 0.8;
+}
+
+/* 危险操作（铅笔红实线描边） */
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
+  transition: opacity var(--dur);
+}
+.btn-danger:hover {
+  opacity: 0.9;
+}
+.btn-danger:active {
+  opacity: 0.8;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* 小圆形图标按钮（浅色虚线框） */
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--line);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  transition: opacity var(--dur);
+}
+.icon-btn:hover {
+  opacity: 0.9;
+}
+.icon-btn:active {
+  opacity: 0.8;
+}
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 文字链接按钮 */
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 13px;
+  padding: 2px 0;
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}
+.link-btn:hover {
+  opacity: 0.9;
+}
+
+/* 快捷 chip（今天 / 昨天 / 前天）：淡色实线，选中实心 */
+.chip {
+  background: transparent;
+  color: var(--line);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  padding: 5px 14px;
+  font-size: 13px;
+  transition: opacity var(--dur);
+}
+.chip:hover {
+  opacity: 0.9;
+}
+.chip:active {
+  opacity: 0.8;
+}
+.chip.on {
+  background: var(--line);
+  color: var(--bg);
+  border-color: var(--line);
+  border-style: solid;
+}
+
+/* ============ 日历 ============ */
+
+/* 日历容器：完整月历与折叠单周条同处（flex:none，高度随内容插值变化，
+   与 timeline 容器此消彼长） */
+.calendar-wrap {
+  flex: none;
+  display: block;
+}
+
+/* 完整月历：容器高度 / 边框随 --collapse-progress（0→1）连续插值（滚动驱动压缩）
+   opacity 分段淡出：progress 0→0.3 期间 1→0 快速归零（内容整体淡出，不逐行截断压扁），
+   0.3 之后完全透明——与单周条淡入（0.7 后）错开，任何中间态只有一层半透明，无重影 */
+.calendar {
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 14px 10px;
+  padding-top: calc(14px * (1 - var(--collapse-progress, 0)));
+  padding-bottom: calc(10px * (1 - var(--collapse-progress, 0)));
+  max-height: calc(480px * (1 - var(--collapse-progress, 0)));
+  opacity: clamp(0, calc((0.3 - var(--collapse-progress, 0)) / 0.3), 1);
+  border-width: calc(2px * (1 - var(--collapse-progress, 0)));
+  overflow: hidden;
+}
+
+/* 折叠单周条：高度随 progress 插值，opacity 分段淡入——progress 0.7→1 期间 0→1
+   （月历 0.3 已完全透明后才开始出现，避免两层半透明叠加重影） */
+.cal-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 10px 8px;
+  margin-bottom: 10px;
+  max-height: calc(66px * var(--collapse-progress, 0));
+  opacity: clamp(0, calc((var(--collapse-progress, 0) - 0.7) / 0.3), 1);
+  overflow: hidden;
+}
+/* 折叠态（class 判定，progress > 0.6）：单周条不透明背景（列表滚过时不透） */
+body.cal-collapsed .cal-week-strip {
+  background: var(--bg);
+}
+.strip-cell {
+  position: relative;
+  height: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text-muted);
+  border-radius: var(--radius);
+}
+.strip-cell .strip-day {
+  font-size: 11px;
+  line-height: 1;
+}
+.strip-cell .strip-num {
+  font-size: 15px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+/* 今天：铅笔红 */
+.strip-cell.today {
+  color: var(--accent);
+}
+.strip-cell.today .strip-num {
+  font-weight: 700;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 选中日期：线色实底 */
+.strip-cell.selected .strip-num {
+  background: var(--line);
+  color: var(--bg);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+.strip-cell.selected.today .strip-num {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+/* 有记录：数字下小圆点 */
+.strip-cell.has-record .strip-num::after {
+  content: "";
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.strip-cell .strip-num {
+  position: relative;
+}
+
+.cal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+}
+.cal-month-label {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 2px 0;
+}
+.cal-month-label:hover {
+  opacity: 0.9;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-top: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--line-soft); /* 内部结构：浅色虚线 */
+}
+.cal-weekdays span {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* 日历网格：7 列，周起始对齐由数据层 monthMatrix 保证 */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px 2px;
+  margin-top: 6px;
+}
+
+/* 月切换滑动动画（0.2s 短促） */
+.cal-grid.slide-in-left {
+  animation: calSlideLeft var(--dur) ease-out;
+}
+.cal-grid.slide-in-right {
+  animation: calSlideRight var(--dur) ease-out;
+}
+@keyframes calSlideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes calSlideRight {
+  from {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cal-cell {
+  position: relative;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  transition: opacity var(--dur), background var(--dur);
+}
+.cal-cell:hover {
+  opacity: 0.9;
+}
+.cal-cell:active {
+  opacity: 0.8;
+}
+/* 未来日期禁用（表单日期面板：禁止未来日期） */
+.cal-cell:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+/* 补位格（上 / 下月） */
+.cal-cell.out {
+  color: var(--text-muted);
+  opacity: 0.45;
+}
+/* 今天：铅笔红标记 */
+.cal-cell.today {
+  color: var(--accent);
+  font-weight: 700;
+  border-color: var(--accent);
+}
+/* 选中日期：线色实底 + 纸色字（背景/边框带平滑过渡，滚动跟随不跳变） */
+.cal-cell.selected {
+  background: var(--line);
+  color: var(--bg);
+  border-color: var(--line);
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  transition: opacity var(--dur), background 0.18s ease-out, border-color 0.18s ease-out;
+}
+/* 有记录：虚线圈住数字，按条数加深（lvl1 < lvl2 < lvl3） */
+.cal-cell.has-record {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+.cal-cell.has-record.lvl2 {
+  background: var(--accent-soft);
+}
+.cal-cell.has-record.lvl3 {
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+}
+/* 今天 + 有记录：铅笔红实底 */
+.cal-cell.today-record {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  border-style: solid;
+  font-weight: 700;
+}
+.cal-cell.selected.today-record {
+  background: var(--line);
+  border-color: var(--line);
+}
+
+/* 日历图例 */
+.cal-legend {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line-soft); /* 内部结构：浅色虚线 */
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--accent); /* 图例圆点：实线 */
+  border-radius: 50%;
+}
+.legend-dot.d3 {
+  background: var(--accent);
+}
+.legend-dot.today {
+  border-style: solid;
+}
+
+/* ============ 添加按钮 ============ */
+/* 高度 / 透明度随 --collapse-progress 连续插值（滚动驱动隐藏）；
+   padding 同步插值：max-height 0 时 padding 会溢出占位，必须一起收敛 */
+.add-row {
+  flex: none;
+  padding: 14px 2px;
+  padding-top: calc(14px * (1 - var(--collapse-progress, 0)));
+  padding-bottom: calc(14px * (1 - var(--collapse-progress, 0)));
+  max-height: calc(80px * (1 - var(--collapse-progress, 0)));
+  opacity: calc(1 - var(--collapse-progress, 0));
+  overflow: hidden;
+}
+
+/* ============ Timeline 独立滚动容器 ============ */
+.timeline-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain; /* 滚动到头/底不触发页面/容器级联滚动 */
+  padding-top: 8px; /* 预留空间底部与内容的间距（gap） */
+  scrollbar-width: thin;
+}
+/* 内容包裹层：折叠阶段（scrollTop 0-600px）由 JS 施加 transform 偏移抵消，
+   内容视觉不动（先折叠后滚动） */
+.timeline-inner {
+  position: relative;
+  will-change: transform;
+  /* 底部 padding 补偿 = tabbar 高度：滚动到底时最后一条记录能完整滑出到 tab 栏上方。
+     注意：padding 必须加在内容层（滚动容器上因 border-box 会与 clientHeight 抵消无效） */
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+/* 折叠态：单周条与 timeline 之间不留额外间距（记录紧贴预留空间底部） */
+body.cal-collapsed .cal-week-strip {
+  margin-bottom: 0;
+}
+/* 折叠完成态：第一组标题隐藏——最新记录贴顶于容器顶部（预留空间底部 + 间距） */
+body.cal-collapsed .tl-group:first-child .tl-group-title {
+  display: none;
+}
+.btn-add {
+  width: 100%;
+  font-size: 16px;
+  padding: 12px 20px;
+  transform: rotate(-0.6deg); /* 轻微手绘倾斜点缀 */
+}
+.btn-add .ic {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============ 列表区 ============ */
+.list-section {
+  padding-bottom: 24px;
+}
+
+.list-head {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 0 2px 10px;
+  /* 折叠时淡出收缩（最新记录贴顶不留头部）；padding 同步插值防溢出占位 */
+  padding-bottom: calc(10px * (1 - var(--collapse-progress, 0)));
+  opacity: calc(1 - var(--collapse-progress, 0));
+  max-height: calc(30px * (1 - var(--collapse-progress, 0)));
+  overflow: hidden;
+}
+
+/* 批量删除工具栏（顶部滑入）：浅色虚线（工具栏类内部结构） */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  background: var(--surface);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  animation: batchIn var(--dur) ease-out;
+  transform: rotate(-0.4deg);
+}
+@keyframes batchIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) rotate(-0.4deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.batch-count {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ============ Timeline 时间线 ============ */
+.tl-group {
+  margin-bottom: 22px;
+}
+.tl-group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 2px 12px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.tl-group-title::after {
+  content: "";
+  flex: 1;
+  border-top: 1px dashed var(--line-soft); /* 内部结构：浅色虚线 */
+  transform: translateY(-4px);
+}
+.tl-count {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.tl-item {
+  position: relative;
+  padding-left: 24px;
+  margin-bottom: 12px;
+}
+/* 左侧竖直时间轴（虚线铅笔线） */
+.tl-line {
+  position: absolute;
+  left: 5px;
+  top: 4px;
+  bottom: -12px;
+  width: 0;
+  border-left: 2px dashed var(--line-soft);
+}
+.tl-item:last-child .tl-line {
+  bottom: 16px;
+}
+/* 时间轴圆点（铅笔描边，高评分实心） */
+.tl-dot {
+  position: absolute;
+  left: 0;
+  top: 13px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+}
+.tl-dot.filled {
+  background: var(--accent);
+}
+
+/* 右侧卡片：虚线边框 + 手绘阴影；高度由内容决定（无详情时紧凑单行） */
+.tl-card {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 7px 12px; /* 紧凑内边距：无备注/无标签时卡片约 38px 高 */
+  cursor: pointer;
+  transition: opacity var(--dur), transform var(--dur);
+}
+/* 相邻卡片微倾斜（手绘感点缀） */
+.tl-item:nth-child(even) .tl-card {
+  transform: rotate(0.35deg);
+}
+.tl-item:nth-child(odd) .tl-card {
+  transform: rotate(-0.35deg);
+}
+.tl-card:hover {
+  opacity: 0.9;
+}
+
+.tl-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* 评分星星：填充 = 铅笔红，空星 = 弱化色轮廓 */
+.tl-stars {
+  display: flex;
+  gap: 2px;
+  color: var(--accent);
+  flex: none;
+}
+.tl-stars .star {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* svg 必须显式尺寸：无尺寸的内联 svg 在部分内核渲染为 0，撑破卡片布局 */
+.tl-stars .star svg {
+  width: 16px;
+  height: 16px;
+}
+.tl-stars .star.blank {
+  color: var(--text-muted);
+}
+.tl-time {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tl-time.placeholder {
+  color: var(--text-muted); /* --:-- 弱化占位 */
+}
+
+/* 展开详情 */
+.tl-detail {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height var(--dur) ease-out, opacity var(--dur) ease-out;
+}
+.tl-item.open .tl-detail {
+  max-height: 480px; /* 长备注展开上限（16 行左右），有内容时自然增高 */
+  opacity: 1;
+}
+.tl-note {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line-soft); /* 内部结构：浅色虚线 */
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* 主行默认标签行（有标签时显示，无标签不占空间） */
+.tl-tags-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+.tl-tags-inline .tl-tag {
+  font-size: 12px;
+  padding: 0 7px;
+}
+.tl-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border: 1px dashed var(--line-soft); /* 标签 chip：浅色虚线 */
+  border-radius: var(--radius);
+  padding: 1px 8px;
+}
+.tl-tag .tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tag-color, var(--text-muted));
+}
+
+/* 左滑操作（编辑 / 删除） */
+.tl-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px; /* 按钮组与记录卡片之间留出呼吸间距 */
+  opacity: 0;
+  transition: opacity var(--dur);
+  pointer-events: none;
+}
+.tl-item.swiped .tl-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.tl-item.swiped .tl-card {
+  transform: translateX(-112px) !important; /* 按钮组 104px + 间距 8px（与 LIMITS.SWIPE_MAX_PX 一致） */
+}
+.act-btn {
+  width: 48px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--surface);
+  font-size: 11px;
+  border-radius: var(--radius);
+  transition: opacity var(--dur);
+}
+.act-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.act-btn:hover {
+  opacity: 0.9;
+}
+.act-btn:active {
+  opacity: 0.8;
+}
+.act-edit {
+  border: 1px dashed var(--accent); /* 操作按钮：浅色虚线（accent 强调色） */
+  color: var(--accent);
+}
+.act-del {
+  border: 1px dashed var(--text-secondary);
+  color: var(--text-secondary);
+}
+
+/* 批量模式：卡片前显示选择圈 */
+body.batch-mode .tl-card {
+  cursor: pointer;
+}
+body.batch-mode .tl-item .tl-card::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 12px;
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--line); /* 批量选择圈：实线 */
+  border-radius: 50%;
+  background: var(--surface);
+}
+body.batch-mode .tl-item.selected .tl-card::before {
+  background: var(--accent);
+  border-color: var(--accent);
+  border-style: solid;
+}
+body.batch-mode .tl-item.selected .tl-card {
+  border-color: var(--accent);
+  border-style: solid;
+}
+/* 批量模式下隐藏圆点，避免与选择圈重叠 */
+body.batch-mode .tl-dot {
+  display: none;
+}
+body.batch-mode .tl-item .tl-actions {
+  display: none;
+}
+
+/* ============ 骨架屏 ============ */
+.skeleton-card {
+  background: var(--surface);
+  border: var(--border-soft);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.skeleton-line {
+  height: 13px;
+  background: var(--bg-secondary);
+  border-radius: 2px;
+  margin-bottom: 9px;
+  animation: skPulse 0.8s ease-in-out infinite alternate;
+}
+.skeleton-line:last-child {
+  margin-bottom: 0;
+}
+.skeleton-line.w40 {
+  width: 40%;
+}
+.skeleton-line.w70 {
+  width: 70%;
+}
+@keyframes skPulse {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============ 空态 ============ */
+.empty {
+  text-align: center;
+  padding: 44px 16px 30px;
+}
+.empty-art {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  color: var(--line-soft);
+  border: 2px dashed var(--line); /* 空态框：主轮廓虚线 */
+  border-radius: 50%;
+  transform: rotate(-4deg);
+}
+.empty-art svg {
+  width: 44px;
+  height: 44px;
+}
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.empty-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+.empty .btn-primary {
+  transform: rotate(-1deg);
+}
+.empty .btn-primary .ic {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============ 底部弹出表单 sheet ============ */
+.sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--mask);
+  opacity: 0;
+  transition: opacity var(--dur);
+}
+.sheet-mask.open {
+  opacity: 1;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column; /* 头部 / 滚动内容 / 底部操作区 三段式固定布局 */
+  background: var(--bg);
+  border-top: var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -2px 0 var(--shadow-color);
+  max-height: 88vh;
+  overflow: hidden; /* 滚动交给 .form-body，标题与按钮始终固定 */
+  padding: 10px var(--space) calc(var(--space) + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform var(--dur) ease-out;
+}
+.sheet.open {
+  transform: translateY(0);
+}
+
+/* 固定头部：拖动条 + 标题 */
+.sheet-head {
+  flex: none;
+  padding-bottom: 4px;
+}
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 10px;
+  background: var(--line-soft);
+  border-radius: 2px;
+}
+.sheet-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+/* 滚动内容区（字段列表） */
+.form-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 2px 6px;
+}
+
+/* 字段卡片：淡色实线做字段间分隔（虚线仅保留在 sheet 顶线与日期框） */
+.field {
+  background: var(--surface);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.field.error {
+  border-color: var(--accent);
+  border-style: solid;
+}
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+.req {
+  color: var(--accent);
+}
+.field-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+.field-hint.warn {
+  color: var(--accent);
+}
+
+/* 日期快捷 + 输入 */
+.date-quick {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+/* 表单输入控件统一紧凑高度（42px 单行），与其他字段输入框等高 */
+.input-date,
+.input-text,
+.picker-btn {
+  height: 42px;
+  padding: 0 10px;
+}
+
+/* 日期框（自定义日期选择按钮，替代原生 input[type=date]）：
+   唯一保留虚线边框的输入控件（铅笔手绘点缀）；
+   button 元素布局完全可控，任何视口宽度下不溢出 */
+.input-date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 1px dashed var(--line-soft); /* 日期显示框：内部输入框 → 浅色虚线 */
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.input-date:hover {
+  opacity: 0.9;
+}
+.input-date:active {
+  opacity: 0.8;
+}
+.input-text {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* 时间选择：picker 按钮（淡色实线，紧凑单行高度） */
+.picker-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 15px;
+  text-align: left;
+  transition: opacity var(--dur);
+}
+.picker-btn:hover {
+  opacity: 0.9;
+}
+.picker-btn .placeholder {
+  color: var(--text-muted);
+}
+/* 时间框右侧箭头（尺寸/颜色收进 CSS，替代 HTML 内联样式） */
+.picker-chevron {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--text-muted);
+}
+.picker-chevron svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* 滚轮时间选择器 */
+.wheel-panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line-soft);
+  animation: wheelIn var(--dur) ease-out;
+}
+@keyframes wheelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.wheel-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.wheel {
+  width: 76px;
+  height: 144px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  /* 首尾项可滚由 JS 的 scrollTop 居中定位公式保证，不再用 padding 撑 */
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.wheel::-webkit-scrollbar {
+  display: none;
+}
+.wheel-item {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  font-size: 15px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: color var(--dur), font-size var(--dur);
+}
+.wheel-item.on {
+  color: var(--text);
+  font-size: 19px;
+  font-weight: 700;
+}
+.wheel-colon {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.wheel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* 评分星星（表单，可清除） */
+.stars-lg {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.stars-lg button {
+  background: none;
+  border: none;
+  padding: 2px;
+  color: var(--text-muted);
+  transition: opacity var(--dur);
+}
+.stars-lg button:hover {
+  opacity: 0.9;
+}
+.stars-lg button:active {
+  opacity: 0.8;
+}
+.stars-lg button.on {
+  color: var(--accent);
+}
+.stars-lg button.on svg {
+  fill: currentColor;
+}
+.stars-lg svg {
+  width: 30px;
+  height: 30px;
+}
+
+/* 标签多选 + 新建 */
+.tag-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tag-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--text);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  padding: 3px 10px;
+  font-size: 13px;
+  transition: opacity var(--dur);
+}
+.tag-chip:hover {
+  opacity: 0.9;
+}
+.tag-chip.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  border-style: solid;
+  font-weight: 600;
+}
+.tag-chip .tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tag-color, var(--text-muted));
+}
+
+/* 备注 */
+textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+textarea::placeholder,
+.input-text::placeholder {
+  color: var(--text-muted);
+}
+.note-count {
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* 固定底部操作区（取消 / 保存，随表单滚动始终可见） */
+.sheet-actions {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  padding-top: 12px;
+}
+.sheet-actions .btn-primary,
+.sheet-actions .btn-ghost {
+  flex: 1;
+  padding: 11px 20px;
+  font-size: 15px;
+}
+
+/* 有内容关闭确认条：内部元素，浅色虚线 */
+.confirm-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  animation: batchIn var(--dur) ease-out;
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+/* ============ 弹层 modal（确认 / 年月选择器） ============ */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: var(--mask);
+  opacity: 0;
+  transition: opacity var(--dur);
+}
+.modal-mask.open {
+  opacity: 1;
+}
+.modal {
+  position: fixed;
+  left: 50%;
+  top: 42%;
+  z-index: 71;
+  width: min(320px, 86vw);
+  background: var(--bg);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 16px;
+  transform: translate(-50%, -50%) scale(0.94);
+  opacity: 0;
+  transition: transform var(--dur) ease-out, opacity var(--dur) ease-out;
+}
+.modal.open {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.modal-text {
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+  margin-bottom: 16px;
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+.modal-actions .btn-primary,
+.modal-actions .btn-ghost {
+  flex: 1;
+}
+/* 仅单个操作按钮的弹层（如日期面板取消）靠右显示 */
+.modal .modal-actions {
+  justify-content: flex-end;
+}
+.modal .modal-actions .btn-ghost:only-child {
+  flex: none;
+  min-width: 96px;
+}
+
+/* 年月选择器 */
+.ym-year {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.ym-year-text {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  min-width: 64px;
+  text-align: center;
+}
+.ym-months {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ym-month {
+  background: transparent;
+  border: 1px dashed var(--line-soft); /* 年月格子：浅色虚线（按钮类） */
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  padding: 8px 0;
+  transition: opacity var(--dur);
+}
+.ym-month:hover {
+  opacity: 0.9;
+}
+.ym-month.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  border-style: solid;
+  color: var(--bg);
+  font-weight: 700;
+}
+
+/* ============ 月份浮层 ============ */
+.month-float {
+  position: fixed;
+  left: 50%;
+  top: 34%;
+  z-index: 80;
+  background: var(--surface);
+  border: 2px dashed var(--line); /* 浮层提示：容器级深色虚线 */
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 10px 24px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  transform: translate(-50%, -50%) rotate(-2deg);
+  opacity: 0;
+  transition: opacity var(--dur);
+  pointer-events: none;
+}
+.month-float.show {
+  opacity: 1;
+}
+
+/* ============ Toast ============ */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  z-index: 100;
+  max-width: 88vw;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 2px dashed var(--line); /* Toast 提示：容器级深色虚线 */
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--text);
+  transform: translate(-50%, 10px) rotate(-0.5deg);
+  opacity: 0;
+  transition: opacity var(--dur), transform var(--dur);
+  pointer-events: none;
+}
+.toast.show {
+  transform: translate(-50%, 0) rotate(-0.5deg);
+  opacity: 1;
+  pointer-events: auto;
+}
+.toast.error {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.toast-action {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}
+.toast-action:hover {
+  opacity: 0.9;
+}
+
+/* ============ 占位页（统计 / 设置） ============ */
+/* 类名 placeholder-page：避免与列表时间占位 .tl-time.placeholder /
+   表单时间占位 .picker-btn .placeholder 撞名（padding 规则污染） */
+.placeholder-page {
+  padding: 64px 24px;
+  text-align: center;
+}
+.placeholder-art {
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 18px;
+  display: grid;
+  place-items: center;
+  color: var(--line-soft);
+  border: 2px dashed var(--line); /* 占位页空态框：主轮廓虚线 */
+  border-radius: 50%;
+  transform: rotate(-3deg);
+}
+.placeholder-art svg {
+  width: 46px;
+  height: 46px;
+}
+.placeholder-page h2 {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.placeholder-page p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+
+/* ============ 响应式（桌面） ============ */
+@media (min-width: 768px) {
+  body {
+    padding-bottom: 90px;
+  }
+  /* 桌面 tabbar 高度不同，容器内容层底部补偿同步 */
+  .timeline-inner {
+    padding-bottom: 90px;
+  }
+  .page {
+    padding: 0 24px;
+  }
+  .stats-scroll::after {
+    height: 90px;
+  }
+  #tabbar {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 480px;
+    border: 1px dashed var(--line-soft);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: var(--shadow);
+  }
+  .sheet {
+    left: 50%;
+    right: auto;
+    width: min(560px, 94vw);
+    border-left: var(--border);
+    border-right: var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    transform: translate(-50%, 100%);
+  }
+  .sheet.open {
+    transform: translate(-50%, 0);
+  }
+  .toast {
+    bottom: 100px;
+  }
+  .cal-cell:hover {
+    background: var(--accent-soft);
+  }
+}
+
+/* ============ 日期范围选择器（统计页自定义范围） ============ */
+.drp-targets {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.drp-target {
+  flex: 1;
+  background: transparent;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: opacity var(--dur);
+}
+.drp-target:hover {
+  opacity: 0.9;
+}
+.drp-target.on {
+  border-color: var(--accent);
+  border-style: solid;
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.drp-sep {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.drp-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+.drp-hint .accent {
+  color: var(--accent);
+  font-weight: 700;
+}
+/* 区间中间日期高亮连接 */
+.cal-cell.in-range {
+  background: var(--accent-soft);
+}
+
+/* ============ 图表 tooltip（铅笔手绘风，点击位置附近，防溢出） ============ */
+.chart-tooltip {
+  position: fixed;
+  z-index: 120;
+  background: var(--surface);
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  box-shadow: 2px 2px 0 var(--shadow-color);
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  pointer-events: none;
+  max-width: 200px;
+}
+.chart-tooltip.show {
+  opacity: 1;
+}
+.tooltip-key {
+  color: var(--text);
+  font-weight: 600;
+}
+.tooltip-sep {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.tooltip-val {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 热力图年份选择器 */
+.hy-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.hy-opt {
+  background: transparent;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  padding: 10px 0;
+  cursor: pointer;
+  transition: opacity var(--dur);
+}
+.hy-opt:hover {
+  opacity: 0.9;
+}
+.hy-opt.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  border-style: solid;
+  color: var(--bg);
+  font-weight: 700;
+}
+
+/* 评分分布：水平堆叠条（5 段按占比，长方形卡片友好） */
+.stack-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stack-bar-head {
+  display: flex;
+  justify-content: flex-end;
+}
+.stack-total {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.stack-bar {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.stack-seg {
+  height: 100%;
+  cursor: pointer;
+  transition: opacity var(--dur);
+}
+.stack-seg:hover {
+  opacity: 0.8;
+}
+.stack-seg.zero {
+  min-width: 2px; /* 0 次段：最小可见淡色段（细分隔） */
+  border-left: 1px solid var(--line-soft);
+  cursor: default;
+}
+.stack-legend {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+.stack-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.stack-legend-item:hover {
+  opacity: 0.8;
+}
+.stack-legend-item em {
+  font-style: normal;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.stack-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+/* 时段分布：未记录段灰阶弱化（区别于铅笔红档） */
+.stack-seg.pd-none {
+  background: var(--text-muted);
+  opacity: 0.28;
+}
+.stack-seg.pd-none:hover {
+  opacity: 0.45;
+}
+
+/* 标签排行：行式布局（色点 + 固定宽标签列 + 次数/占比 + 独立比例条，条形不挤压标签） */
+.tag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 4px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.tag-row:hover {
+  background: var(--accent-soft);
+}
+.tag-row-dot {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.tag-row-name {
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.tag-row-meta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.tag-row-bar {
+  flex: 1 1 auto;
+  min-width: 40px;
+  height: 10px;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.tag-row-bar i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+/* 热力图格内月份数字（柔和对比色：浅格淡灰字、深格浅色字降对比） */
+.chart-body .heat-month {
+  fill: var(--text-muted);
+  opacity: 0.6;
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.chart-body .heat-month.on-dark {
+  fill: var(--bg);
+  opacity: 0.75;
+}
+
+/* ============ 动效降级（prefers-reduced-motion） ============ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ============ 统计页（v0.4.0） ============ */
+#page-stats {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+}
+#page-stats.active {
+  display: flex;
+}
+/* 统计页独立滚动容器（页面不滚动，与记录页一致） */
+.stats-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 0 0;
+}
+/* 底部 padding 补偿 = tabbar 高度（内容层伪元素：滚动容器 padding 会因 border-box 抵消） */
+.stats-scroll::after {
+  content: "";
+  display: block;
+  height: calc(72px + env(safe-area-inset-bottom));
+}
+
+/* 范围选择 */
+.range-bar {
+  margin-bottom: 12px;
+}
+.range-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.range-chips .chip {
+  font-size: 13px;
+  padding: 5px 12px;
+}
+.range-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  padding-left: 2px;
+}
+
+/* 概览卡片（2×2 网格） */
+.stats-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface);
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+.stat-card-value {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text);
+}
+.stat-card-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.stat-card-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* 图表卡片 */
+.chart-card {
+  background: var(--surface);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.chart-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.chart-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.chart-title-row .chart-title {
+  margin-bottom: 0;
+}
+.chart-body {
+  width: 100%;
+}
+.chart-body svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.chart-empty {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 24px 0;
+}
+.heatmap-switch {
+  display: flex;
+  gap: 6px;
+}
+.heatmap-switch .chip {
+  font-size: 12px;
+  padding: 3px 9px;
+}
+
+/* SVG 图表元素（铅笔手绘风 token） */
+.chart-body .bar {
+  fill: var(--accent);
+  opacity: 0.85;
+}
+.chart-body .trend-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 4 3; /* 手绘虚线趋势线 */
+}
+.chart-body .point {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.chart-body .grid-line {
+  fill: none;
+  stroke: var(--line-soft);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+/* y 轴刻度水平网格线（淡色虚线）与刻度数值 */
+.chart-body .y-grid {
+  stroke: var(--line-soft);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.chart-body .y-label {
+  fill: var(--text-muted);
+  font-size: 9px;
+  text-anchor: end;
+}
+.chart-body .axis-label {
+  fill: var(--text-muted);
+  font-size: 10px;
+  text-anchor: middle;
+}
+.chart-body .hbar {
+  fill: var(--accent);
+  opacity: 0.85;
+}
+/* 热力图：4 级铅笔红深浅 + 细描边 */
+.chart-body .heat {
+  stroke: var(--line-soft);
+  stroke-width: 0.8;
+}
+.chart-body .heat.h0 {
+  fill: var(--surface);
+}
+.chart-body .heat.h1 {
+  fill: var(--accent-soft);
+}
+.chart-body .heat.h2 {
+  fill: var(--accent-mid);
+}
+.chart-body .heat.h3 {
+  fill: var(--accent-deep);
+}
+.chart-body .heat[data-future="1"] {
+  opacity: 0.25;
+}
+/* 热力图图例（少 → 多） */
+.heat-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.heat-legend .heat-lv {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+}
+.heat-legend .heat-lv.h0 {
+  background: var(--surface);
+}
+.heat-legend .heat-lv.h1 {
+  background: var(--accent-soft);
+}
+.heat-legend .heat-lv.h2 {
+  background: var(--accent-mid);
+}
+.heat-legend .heat-lv.h3 {
+  background: var(--accent-deep);
+}
+.chart-click {
+  cursor: pointer;
+}
+.chart-click:hover .bar,
+.chart-click:hover .point,
+.chart-click:hover .hbar {
+  opacity: 0.7;
+}
+

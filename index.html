@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <!-- 禁止双指/双击缩放（更接近原生 App 体验）；touch-action 由 CSS 配合 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DoToday</title>
+  <meta name="description" content="DoToday：简单记录每一天（日期时间 + 五星评分 + 文字备注）">
+  <meta name="theme-color" content="#f5f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#211f1a" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===== 记录页（主界面）：flex 列布局 =====
+         标题（flex:none）→ 日历容器（高度可变）→ timeline 独立滚动容器（flex:1） -->
+    <main id="page-record" class="page active">
+      <!-- 标题区（页面不滚动，flex 项自然固定） -->
+      <header class="app-header">
+        <div class="app-logo" data-icon="calendar" aria-hidden="true"></div>
+        <div>
+          <h1 class="app-title">DoToday</h1>
+          <p class="app-subtitle">今天，做了什么？</p>
+        </div>
+      </header>
+
+      <!-- 日历容器：完整月历 ↔ 折叠单周条（高度由 --collapse-progress 插值，此消彼长） -->
+      <div class="calendar-wrap" id="calendar-wrap">
+        <!-- 完整月历 -->
+        <section class="card calendar" aria-label="日历">
+          <div class="cal-header">
+            <button type="button" class="icon-btn" id="cal-prev" data-icon="chevronLeft" aria-label="上个月"></button>
+            <button type="button" class="cal-month-label" id="cal-month-label" aria-label="选择月份">2026年8月</button>
+            <button type="button" class="icon-btn" id="cal-next" data-icon="chevronRight" aria-label="下个月"></button>
+            <button type="button" class="btn-ghost btn-sm" id="cal-today">今天</button>
+          </div>
+          <div class="cal-weekdays" id="cal-weekdays"></div>
+          <div class="cal-grid" id="cal-grid"></div>
+          <div class="cal-legend">
+            <span class="legend-item"><i class="legend-dot" aria-hidden="true"></i>记录少</span>
+            <span class="legend-item"><i class="legend-dot d3" aria-hidden="true"></i>记录多</span>
+            <span class="legend-item"><i class="legend-dot today" aria-hidden="true"></i>今天</span>
+          </div>
+        </section>
+        <!-- 折叠态：仅显示选中日期所在的一周（周起始规则与主日历一致） -->
+        <section class="cal-week-strip" id="cal-week-strip" aria-label="本周日期"></section>
+      </div>
+
+      <!-- 添加按钮（日历折叠时隐藏） -->
+      <div class="add-row" id="add-row">
+        <button type="button" class="btn-primary btn-add" id="btn-add">
+          <span data-icon="plus" aria-hidden="true"></span>添加记录
+        </button>
+      </div>
+
+      <!-- Timeline 独立滚动容器（flex:1，滚动只发生在这里） -->
+      <div class="timeline-scroll" id="timeline-scroll">
+        <div class="timeline-inner" id="timeline-inner">
+          <div class="list-section" aria-label="记录列表">
+            <!-- 批量删除工具栏 -->
+            <div class="batch-bar" id="batch-bar" hidden>
+              <span class="batch-count" id="batch-count">已选 0 条</span>
+              <button type="button" class="btn-ghost btn-sm" id="batch-cancel">取消</button>
+              <button type="button" class="btn-danger btn-sm" id="batch-delete">删除</button>
+            </div>
+            <div class="list-head" id="list-head"></div>
+            <div class="timeline" id="timeline"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ===== 统计页（v0.4.0） ===== -->
+    <section id="page-stats" class="page">
+      <!-- 统计页独立滚动容器（与记录页一致：页面不滚动） -->
+      <div class="stats-scroll" id="stats-scroll">
+        <!-- 范围选择 -->
+        <div class="range-bar">
+          <div class="range-chips" id="range-chips">
+            <button type="button" class="chip" data-range="week">本周</button>
+            <button type="button" class="chip on" data-range="month">本月</button>
+            <button type="button" class="chip" data-range="year">本年</button>
+            <button type="button" class="chip" data-range="all">全部</button>
+            <button type="button" class="chip" data-range="custom">自定义</button>
+          </div>
+          <div class="range-label" id="stats-range-label"></div>
+        </div>
+
+        <!-- 概览卡片（4 张，跟随所选范围） -->
+        <div class="stats-cards" id="stats-cards"></div>
+
+        <!-- 图表区（7 个手写 SVG） -->
+        <div class="stats-charts" id="stats-charts">
+          <section class="chart-card" data-chart="monthly">
+            <h3 class="chart-title">每月次数</h3>
+            <div class="chart-body" id="chart-monthly"></div>
+          </section>
+          <section class="chart-card" data-chart="trend">
+            <h3 class="chart-title">频率趋势</h3>
+            <div class="chart-body" id="chart-trend"></div>
+          </section>
+          <section class="chart-card" data-chart="rating">
+            <h3 class="chart-title">评分分布</h3>
+            <div class="chart-body" id="chart-rating"></div>
+          </section>
+          <section class="chart-card" data-chart="heatmap">
+            <div class="chart-title-row">
+              <h3 class="chart-title">日历热力图</h3>
+              <div class="heatmap-switch" id="heatmap-switch">
+                <button type="button" class="chip on">近1年</button>
+              </div>
+            </div>
+            <div class="chart-body" id="chart-heatmap"></div>
+          </section>
+          <section class="chart-card" data-chart="weekday">
+            <h3 class="chart-title">星期分布</h3>
+            <div class="chart-body" id="chart-weekday"></div>
+          </section>
+          <section class="chart-card" data-chart="period">
+            <h3 class="chart-title">时段分布</h3>
+            <div class="chart-body" id="chart-period"></div>
+          </section>
+          <section class="chart-card" data-chart="tags">
+            <h3 class="chart-title">标签排行</h3>
+            <div class="chart-body" id="chart-tags"></div>
+          </section>
+        </div>
+
+        <!-- 空态 -->
+        <div class="empty" id="stats-empty" hidden></div>
+      </div>
+    </section>
+
+    <!-- ===== 热力图年份选择器（近1年 / 当前年及前 3 年） ===== -->
+    <div class="modal-mask" id="hy-mask" hidden></div>
+    <div class="modal" id="hy-picker" hidden role="dialog" aria-modal="true" aria-label="选择热力图时间">
+      <h3 class="modal-title">热力图时间</h3>
+      <div class="hy-options" id="hy-options"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="hy-cancel">取消</button>
+      </div>
+    </div>
+
+    <!-- ===== 设置页（v0.1.0 占位） ===== -->
+    <section id="page-settings" class="page">
+      <div class="placeholder-page">
+        <div class="placeholder-art" data-icon="settings" aria-hidden="true"></div>
+        <h2>设置功能即将上线</h2>
+        <p>排序方式、标签管理与数据备份<br>会在后续版本中提供</p>
+      </div>
+    </section>
+
+    <!-- ===== Tab 栏：记录 / 统计 / 设置（文字 + SVG 图标，滑动动画） ===== -->
+    <nav id="tabbar" aria-label="主导航">
+      <span class="tab-slider" id="tab-slider" aria-hidden="true"></span>
+      <button type="button" class="tab-item active" data-tab="record">
+        <span class="tab-icon" data-icon="calendar" aria-hidden="true"></span>
+        <span class="tab-text">记录</span>
+      </button>
+      <button type="button" class="tab-item" data-tab="stats">
+        <span class="tab-icon" data-icon="chart" aria-hidden="true"></span>
+        <span class="tab-text">统计</span>
+      </button>
+      <button type="button" class="tab-item" data-tab="settings">
+        <span class="tab-icon" data-icon="settings" aria-hidden="true"></span>
+        <span class="tab-text">设置</span>
+      </button>
+    </nav>
+
+    <!-- ===== 底部弹出表单（添加 / 编辑记录） =====
+         结构：固定头部（拖动条 + 标题）→ 滚动内容（form-body）→ 固定底部（取消/保存 + 关闭确认条） -->
+    <div class="sheet-mask" id="sheet-mask" hidden></div>
+    <div class="sheet" id="form-sheet" hidden role="dialog" aria-modal="true" aria-label="记录表单">
+      <div class="sheet-head">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 class="sheet-title" id="form-title">添加记录</h2>
+      </div>
+      <form id="record-form" class="form-body" novalidate>
+        <!-- 字段顺序：日期 → 时间 → 评分 → 标签 → 备注 -->
+
+        <!-- 日期（必填） -->
+        <div class="field" data-field="date">
+          <label class="field-label" id="f-date-label">日期 <span class="req">*</span></label>
+          <div class="date-quick">
+            <button type="button" class="chip" data-quick="today">今天</button>
+            <button type="button" class="chip" data-quick="-1">昨天</button>
+            <button type="button" class="chip" data-quick="-2">前天</button>
+          </div>
+          <!-- 自定义日期选择按钮（替代原生 input[type=date]，规避 WebKit 宽度不可控） -->
+          <button type="button" class="input-date" id="f-date-btn" aria-labelledby="f-date-label">
+            <span id="f-date-text"></span>
+          </button>
+          <p class="field-hint" id="f-date-hint"></p>
+        </div>
+
+        <!-- 时间（滚轮选择，可清除） -->
+        <div class="field" data-field="time">
+          <label class="field-label" id="f-time-label">时间</label>
+          <button type="button" class="picker-btn" id="f-time-btn" aria-labelledby="f-time-label">
+            <span id="f-time-text">未填写</span>
+            <span class="picker-chevron" data-icon="chevronRight" aria-hidden="true"></span>
+          </button>
+          <div class="wheel-panel" id="wheel-panel" hidden>
+            <div class="wheel-row">
+              <div class="wheel" id="wheel-hour" aria-label="小时"></div>
+              <span class="wheel-colon" aria-hidden="true">:</span>
+              <div class="wheel" id="wheel-minute" aria-label="分钟"></div>
+            </div>
+            <div class="wheel-actions">
+              <button type="button" class="btn-ghost btn-sm" id="wheel-clear">清除</button>
+              <button type="button" class="btn-ghost btn-sm" id="wheel-cancel">取消</button>
+              <button type="button" class="btn-primary btn-sm" id="wheel-ok">确定</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 评分（可清除） -->
+        <div class="field" data-field="rating">
+          <label class="field-label">评分</label>
+          <div class="stars-lg" id="f-stars" role="radiogroup" aria-label="评分"></div>
+          <button type="button" class="link-btn" id="f-rating-clear" hidden>清除评分</button>
+        </div>
+
+        <!-- 标签（多选 + 新建） -->
+        <div class="field" data-field="tags">
+          <label class="field-label">标签</label>
+          <div class="tag-pick" id="f-tags"></div>
+          <div class="tag-new">
+            <!-- maxlength 由 form.js 按 config LIMITS.TAG_NAME_MAX 设置 -->
+            <input type="text" class="input-text" id="f-tag-input" placeholder="输入新标签，回车添加">
+          </div>
+        </div>
+
+        <!-- 备注（字数限制由 config LIMITS.NOTE_MAX_LEN 驱动，form.js 设置） -->
+        <div class="field" data-field="note">
+          <label class="field-label" for="f-note">备注</label>
+          <textarea id="f-note" rows="4" placeholder="随便写点什么……"></textarea>
+          <div class="note-count"><span id="f-note-count">0</span>/<span id="f-note-max">500</span></div>
+        </div>
+      </form>
+
+      <!-- 固定底部操作区：保存按钮通过 form 属性关联 #record-form 提交 -->
+      <div class="sheet-actions">
+        <button type="button" class="btn-ghost" id="form-cancel">取消</button>
+        <button type="submit" class="btn-primary" id="form-save" form="record-form">保存</button>
+      </div>
+
+      <!-- 有内容时关闭表单的确认条 -->
+      <div class="confirm-bar" id="form-confirm" hidden>
+        <span class="confirm-text">有内容未保存，确定关闭？</span>
+        <span class="confirm-actions">
+          <button type="button" class="btn-ghost btn-sm" id="confirm-keep">继续编辑</button>
+          <button type="button" class="btn-primary btn-sm" id="confirm-discard">放弃</button>
+        </span>
+      </div>
+    </div>
+
+    <!-- ===== 通用确认弹层（删除 / 批量删除） ===== -->
+    <div class="modal-mask" id="confirm-mask" hidden></div>
+    <div class="modal" id="confirm-modal" hidden role="dialog" aria-modal="true">
+      <p class="modal-text" id="confirm-text">确定删除这条记录？</p>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="confirm-no">取消</button>
+        <button type="button" class="btn-primary" id="confirm-yes">删除</button>
+      </div>
+    </div>
+
+    <!-- ===== 年月选择器弹层 ===== -->
+    <div class="modal-mask" id="ym-mask" hidden></div>
+    <div class="modal" id="ym-picker" hidden role="dialog" aria-modal="true" aria-label="选择年月">
+      <h3 class="modal-title">选择月份</h3>
+      <div class="ym-year">
+        <button type="button" class="icon-btn" id="ym-year-prev" data-icon="chevronLeft" aria-label="上一年"></button>
+        <span class="ym-year-text" id="ym-year-text">2026</span>
+        <button type="button" class="icon-btn" id="ym-year-next" data-icon="chevronRight" aria-label="下一年"></button>
+      </div>
+      <div class="ym-months" id="ym-months"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="ym-cancel">取消</button>
+        <button type="button" class="btn-primary" id="ym-ok">确定</button>
+      </div>
+    </div>
+
+    <!-- ===== 表单日期选择面板（自定义小月历，样式与主日历一致） ===== -->
+    <div class="modal-mask" id="dp-mask" hidden></div>
+    <div class="modal" id="date-picker" hidden role="dialog" aria-modal="true" aria-label="选择日期">
+      <h3 class="modal-title">选择日期</h3>
+      <div class="cal-header">
+        <button type="button" class="icon-btn" id="dp-prev" data-icon="chevronLeft" aria-label="上个月"></button>
+        <button type="button" class="cal-month-label" id="dp-month-label">2026年8月</button>
+        <button type="button" class="icon-btn" id="dp-next" data-icon="chevronRight" aria-label="下个月"></button>
+        <button type="button" class="btn-ghost btn-sm" id="dp-today">今天</button>
+      </div>
+      <div class="cal-weekdays" id="dp-weekdays"></div>
+      <div class="cal-grid" id="dp-grid"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="dp-cancel">取消</button>
+      </div>
+    </div>
+
+    <!-- ===== 日期范围选择器（统计页自定义范围，起止两日期） ===== -->
+    <div class="modal-mask" id="drp-mask" hidden></div>
+    <div class="modal" id="drp-picker" hidden role="dialog" aria-modal="true" aria-label="选择日期范围">
+      <h3 class="modal-title">选择日期范围</h3>
+      <div class="drp-targets">
+        <button type="button" class="drp-target on" id="drp-start-btn">开始日期：未选</button>
+        <span class="drp-sep">至</span>
+        <button type="button" class="drp-target" id="drp-end-btn">结束日期：未选</button>
+      </div>
+      <div class="drp-hint" id="drp-hint">点击日历选择开始日期</div>
+      <div class="cal-header">
+        <button type="button" class="icon-btn" id="drp-prev" data-icon="chevronLeft" aria-label="上个月"></button>
+        <button type="button" class="cal-month-label" id="drp-month-label">2026年8月</button>
+        <button type="button" class="icon-btn" id="drp-next" data-icon="chevronRight" aria-label="下个月"></button>
+      </div>
+      <div class="cal-weekdays" id="drp-weekdays"></div>
+      <div class="cal-grid" id="drp-grid"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="drp-cancel">取消</button>
+        <button type="button" class="btn-primary" id="drp-ok">确定</button>
+      </div>
+    </div>
+
+    <!-- ===== 月份浮层（列表滚动提示） ===== -->
+    <div class="month-float" id="month-float" hidden></div>
+
+    <!-- ===== Toast 提示 ===== -->
+    <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
