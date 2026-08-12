@@ -10,10 +10,12 @@
  */
 
 import { $, $$, esc, bus } from "./common.js";
-import { APP_VERSION, loadConfig, saveConfig, getPref, DEFAULT_TAG_COLORS, resolveColor } from "../config.js";
+import { APP_VERSION, loadConfig, saveConfig, getPref, DEFAULT_TAG_COLORS, resolveColor, STORAGE_KEYS } from "../config.js";
 import { DataModule } from "../data.js";
+import { LoggerModule } from "../logger.js";
 import { showToast } from "./toast.js";
 import { showConfirm } from "./list.js";
+import { uploadSync, listRemote, fetchRemote } from "../sync.js";
 
 /** 热力图主色色板：第一项为默认铅笔红（null 跟随主题 --accent），其余低饱和铅笔灰阶 */
 const HEAT_PALETTE = [
@@ -93,14 +95,36 @@ function renderSwatches() {
   ).join("");
 }
 
-/** 渲染设置页（版本号 + 全部选项选中态 + 色板 + 图表配色变量 + 标签列表） */
+/** 统一重置可收起面板（文本导入 / 标签管理 / 本地备份 / 日志 / GitHub 同步）：
+ *  每次进入设置页强制回到收起态（模块状态与 DOM 同步，避免切 Tab 后状态脱节） */
+function resetCollapsiblePanels() {
+  importExpanded = false;
+  tagManageExpanded = false;
+  backupExpanded = false;
+  logExpanded = false;
+  syncExpanded = false;
+  $("#import-panel").hidden = true;
+  $("#import-toggle").textContent = "展开";
+  $("#tag-manage-panel").hidden = true;
+  $("#tag-manage-toggle").textContent = "展开";
+  $("#backup-panel").hidden = true;
+  $("#backup-toggle").textContent = "展开";
+  $("#log-panel").hidden = true;
+  $("#log-toggle").textContent = "展开";
+  $("#sync-panel").hidden = true;
+  $("#sync-toggle").textContent = "展开";
+}
+
+/** 渲染设置页（版本号 + 全部选项选中态 + 色板 + 图表配色变量 + 标签列表 + 同步配置） */
 export function renderSettingsPage() {
+  resetCollapsiblePanels(); // 进入设置页：三面板回到收起态（状态与 DOM 强一致）
   $("#settings-version").textContent = "v" + APP_VERSION;
   syncChips("weekStartDay");
   syncChips("defaultSortOrder");
   renderSwatches();
   applyChartColors(getPref("heatmapColor"));
   renderTagManage();
+  renderSyncPage();
 }
 
 /* ============ 配置保存（读改写，保留其余字段） ============ */
@@ -497,6 +521,441 @@ function bindTagManageEvents() {
   $("#tag-color-mask").addEventListener("click", closeTagColorPicker);
 }
 
+/* ============ GitHub 同步（本地为权威：上传日常备份，恢复覆盖式） ============ */
+
+let syncSecretInput = ""; // 私钥内存值（未记住时页面关闭即失）
+let syncExpanded = false; // 分组展开状态（默认收起，与标签管理/文本导入一致）
+
+/** 展开/收起同步分组（展开时刷新最近上传时间） */
+function toggleSyncPanel() {
+  syncExpanded = !syncExpanded;
+  $("#sync-panel").hidden = !syncExpanded;
+  $("#sync-toggle").textContent = syncExpanded ? "收起" : "展开";
+  if (syncExpanded) renderSyncPage();
+}
+
+/** 渲染同步配置：token/repo/私钥（记住则回填）/最近上传时间 */
+function renderSyncPage() {
+  const config = loadConfig();
+  const sync = config.sync || {};
+  $("#sync-token").value = sync.githubToken || "";
+  $("#sync-repo").value = sync.repo || "";
+  const remembered = localStorage.getItem(STORAGE_KEYS.SECRET) || "";
+  $("#sync-secret").value = remembered;
+  syncSecretInput = remembered;
+  $("#sync-remember").checked = !!remembered;
+  $("#sync-last").textContent = sync.lastSyncAt
+    ? `最近上传：${new Date(sync.lastSyncAt).toLocaleString()}`
+    : "最近上传：—";
+}
+
+/** 保存 token/repo 到配置 sync 字段 */
+function saveSyncConfig(patch) {
+  const config = loadConfig();
+  config.sync = Object.assign({}, config.sync || {}, patch);
+  saveConfig(config);
+}
+
+/** 校验同步配置；返回 {token, repo, secret} 或 null（缺项提示） */
+function collectSyncConfig() {
+  const token = $("#sync-token").value.trim();
+  const repo = $("#sync-repo").value.trim();
+  const secret = $("#sync-secret").value;
+  if (!token) {
+    showToast("请填写 GitHub Token", { type: "error" });
+    return null;
+  }
+  if (!repo || !repo.includes("/")) {
+    showToast("请填写仓库（格式 owner/repo）", { type: "error" });
+    return null;
+  }
+  if (!secret) {
+    showToast("请填写加密私钥", { type: "error" });
+    return null;
+  }
+  saveSyncConfig({ githubToken: token, repo });
+  return { token, repo, secret };
+}
+
+/** 记住私钥：勾选 → 明文存 localStorage；取消 → 清除 */
+function handleRememberSecret(e) {
+  const checked = e.target.checked;
+  const secret = $("#sync-secret").value;
+  if (checked) {
+    if (secret) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.SECRET, secret);
+        syncSecretInput = secret;
+        showToast("私钥已保存在本机（明文），请注意风险");
+      } catch (err) {
+        showToast("保存失败：存储不可用", { type: "error" });
+      }
+    } else {
+      e.target.checked = false;
+      showToast("请先输入私钥", { type: "error" });
+    }
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.SECRET);
+    syncSecretInput = "";
+    showToast("已清除本机保存的私钥");
+  }
+}
+
+/** 上传备份（日常）：加密 → current 覆盖 + 时间戳备份 → 清理超 20 份 */
+async function handleSyncUpload() {
+  const cfg = collectSyncConfig();
+  if (!cfg) return;
+  showToast("正在上传备份…", { duration: 2000 });
+  try {
+    const result = await uploadSync(cfg.token, cfg.repo, cfg.secret);
+    saveSyncConfig({ lastSyncAt: Date.now() });
+    renderSyncPage();
+    showToast(`已上传 ${result.uploaded.length} 个文件（共 ${result.backups} 份备份${result.cleaned.length ? `，清理 ${result.cleaned.length} 份旧备份` : ""}）`, { duration: 4000 });
+  } catch (err) {
+    showToast(err.message, { type: "error", duration: 4000 });
+  }
+}
+
+/** 恢复弹层状态 */
+let syncModalStep = "list"; // list | preview
+let syncPreviewData = null; // 解密后的远端数据
+let syncFiles = [];
+
+function showSyncModal() {
+  $("#sync-mask").hidden = false;
+  $("#sync-modal").hidden = false;
+  requestAnimationFrame(() => {
+    $("#sync-mask").classList.add("open");
+    $("#sync-modal").classList.add("open");
+  });
+}
+
+function closeSyncModal() {
+  $("#sync-mask").classList.remove("open");
+  $("#sync-modal").classList.remove("open");
+  setTimeout(() => {
+    $("#sync-mask").hidden = true;
+    $("#sync-modal").hidden = true;
+  }, 220);
+}
+
+function setSyncStep(step) {
+  syncModalStep = step;
+  $("#sync-step-list").hidden = step !== "list";
+  $("#sync-step-preview").hidden = step !== "preview";
+  $("#sync-modal-back").hidden = step !== "preview";
+  $("#sync-modal-confirm").hidden = step !== "preview";
+}
+
+/** 恢复流程：列出远端 → 选择 → 解密预览 → 确认覆盖 */
+async function handleSyncRestore() {
+  const cfg = collectSyncConfig();
+  if (!cfg) return;
+  showToast("正在获取远端列表…", { duration: 2000 });
+  try {
+    syncFiles = await listRemote(cfg.token, cfg.repo);
+  } catch (err) {
+    showToast(err.message, { type: "error", duration: 4000 });
+    return;
+  }
+  if (!syncFiles.length) {
+    showToast("远端暂无备份文件", { type: "error" });
+    return;
+  }
+  $("#sync-list-hint").textContent = `远端备份（${syncFiles.length} 个文件）：`;
+  $("#sync-file-list").innerHTML = syncFiles
+    .map(
+      (f) => `<div class="sync-file-item" data-name="${esc(f.name)}">
+        <span class="sync-file-name">${esc(f.name)}</span>
+        <span class="sync-file-size">${(f.size / 1024).toFixed(1)} KB</span>
+      </div>`
+    )
+    .join("");
+  setSyncStep("list");
+  showSyncModal();
+}
+
+/** 预览远端数据概要 */
+function renderSyncPreview(data) {
+  const records = Array.isArray(data.records) ? data.records : [];
+  const tags = Array.isArray(data.tags) ? data.tags : [];
+  let dateRange = "—";
+  if (records.length) {
+    const dates = records.map((r) => r.date).sort();
+    dateRange = `${dates[0]} ~ ${dates[dates.length - 1]}`;
+  }
+  const savedAt = data.savedAt ? new Date(data.savedAt).toLocaleString() : "—";
+  $("#sync-preview-info").textContent = `${syncPreviewName}（${(syncPreviewSize / 1024).toFixed(1)} KB）`;
+  $("#sync-preview-box").innerHTML = `
+    记录：${records.length} 条<br>
+    标签：${tags.length} 个<br>
+    日期范围：${dateRange}<br>
+    备份时间：${savedAt}`;
+  $("#sync-modal-confirm").textContent = `确认覆盖（${records.length} 条记录）`;
+}
+
+let syncPreviewName = "";
+let syncPreviewSize = 0;
+
+/** 恢复弹层事件 */
+function bindSyncModalEvents() {
+  $("#sync-file-list").addEventListener("click", async (e) => {
+    const item = e.target.closest(".sync-file-item");
+    if (!item) return;
+    const cfg = collectSyncConfig();
+    if (!cfg) return;
+    const name = item.dataset.name;
+    showToast("正在下载并解密…", { duration: 2000 });
+    try {
+      const file = syncFiles.find((f) => f.name === name);
+      syncPreviewName = name;
+      syncPreviewSize = file ? file.size : 0;
+      syncPreviewData = await fetchRemote(cfg.token, cfg.repo, name, cfg.secret);
+      renderSyncPreview(syncPreviewData);
+      setSyncStep("preview");
+    } catch (err) {
+      showToast(err.message, { type: "error", duration: 4000 });
+    }
+  });
+  $("#sync-modal-confirm").addEventListener("click", async () => {
+    if (!syncPreviewData) return;
+    const cfg = collectSyncConfig();
+    if (!cfg) return;
+    const n = Array.isArray(syncPreviewData.records) ? syncPreviewData.records.length : 0;
+    showConfirm({
+      text: `将用远端数据覆盖本地 ${DataModule.getAllRecords().length} 条记录（远端 ${n} 条），且不做合并。确定继续？`,
+      yesText: "覆盖",
+      onYes: async () => {
+        try {
+          const result = await DataModule.replaceAll({
+            records: syncPreviewData.records || [],
+            tags: syncPreviewData.tags || [],
+          });
+          closeSyncModal();
+          showToast(`已恢复 ${result.records} 条记录（覆盖本地）`, { duration: 4000 });
+          bus.emit("records-changed");
+        } catch (err) {
+          showToast(`恢复失败：${err.message}`, { type: "error" });
+        }
+      },
+    });
+  });
+  $("#sync-modal-back").addEventListener("click", () => setSyncStep("list"));
+  $("#sync-modal-cancel").addEventListener("click", closeSyncModal);
+  $("#sync-mask").addEventListener("click", closeSyncModal);
+}
+
+/** 绑定同步事件（initSettingsPage 内调用） */
+function bindSyncEvents() {
+  // 分组展开/收起
+  $("#sync-toggle").addEventListener("click", toggleSyncPanel);
+
+  // 配置输入即时保存（token/repo 失焦保存；私钥仅存内存）
+  $("#sync-token").addEventListener("change", (e) => saveSyncConfig({ githubToken: e.target.value.trim() }));
+  $("#sync-repo").addEventListener("change", (e) => saveSyncConfig({ repo: e.target.value.trim() }));
+  $("#sync-secret").addEventListener("input", (e) => {
+    syncSecretInput = e.target.value;
+    // 记住态下实时同步
+    if ($("#sync-remember").checked) {
+      if (syncSecretInput) localStorage.setItem(STORAGE_KEYS.SECRET, syncSecretInput);
+      else localStorage.removeItem(STORAGE_KEYS.SECRET);
+    }
+  });
+  $("#sync-remember").addEventListener("change", handleRememberSecret);
+  $("#sync-upload").addEventListener("click", handleSyncUpload);
+  $("#sync-restore").addEventListener("click", handleSyncRestore);
+  bindSyncModalEvents();
+}
+
+/* ============ 本地备份管理（创建 / 恢复预览覆盖 / 删除 / 导出） ============ */
+
+let backupExpanded = false;
+let logExpanded = false;
+
+function toggleBackupPanel() {
+  backupExpanded = !backupExpanded;
+  $("#backup-panel").hidden = !backupExpanded;
+  $("#backup-toggle").textContent = backupExpanded ? "收起" : "展开";
+  if (backupExpanded) renderBackupList();
+}
+
+/** 备份名称 → 可读时间（dotoday_backup_YYYYMMDD_HHMMSS → YYYY-MM-DD HH:MM:SS） */
+function backupNameToTime(name) {
+  const m = /dotoday_backup_(\d{8})_(\d{6})/.exec(name || "");
+  if (!m) return "";
+  const d = m[1];
+  const t = m[2];
+  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)} ${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6)}`;
+}
+
+/** 渲染备份列表（名称 / 时间 / 恢复 / 删除 / 导出；空态） */
+async function renderBackupList() {
+  const list = $("#backup-list");
+  let backups;
+  try {
+    backups = await DataModule.listBackups();
+  } catch (e) {
+    list.innerHTML = `<div class="backup-empty">读取备份失败：${esc(e.message)}</div>`;
+    return;
+  }
+  if (!backups.length) {
+    list.innerHTML = `<div class="backup-empty">暂无备份，点击"创建备份"手动备份</div>`;
+    return;
+  }
+  list.innerHTML = backups
+    .map(
+      (b) => `<div class="backup-item" data-name="${esc(b.name)}">
+        <div class="backup-item-main">
+          <span class="backup-item-name" title="${esc(b.name)}">${esc(b.name)}</span>
+          <span class="backup-item-time">${esc(backupNameToTime(b.name) || new Date(b.createdAt).toLocaleString())}</span>
+        </div>
+        <span class="backup-item-ops">
+          <button type="button" class="btn-ghost btn-sm" data-act="restore">恢复</button>
+          <button type="button" class="btn-ghost btn-sm" data-act="download">导出</button>
+          <button type="button" class="btn-ghost btn-sm danger" data-act="delete">删除</button>
+        </span>
+      </div>`
+    )
+    .join("");
+  $("#backup-refresh").hidden = false;
+}
+
+/** 手动创建备份（强制） */
+async function handleBackupCreate() {
+  showToast("正在创建备份…", { duration: 2000 });
+  try {
+    const name = await DataModule.createBackup(true);
+    if (!name) {
+      showToast("创建备份失败", { type: "error" });
+      return;
+    }
+    showToast(`已创建备份：${name}`);
+    renderBackupList();
+  } catch (e) {
+    showToast(e.message.replace("[DataModule] ", ""), { type: "error" });
+  }
+}
+
+/** 恢复备份：预览（记录数 / 日期范围）→ 二次确认 → 覆盖本地 */
+async function handleBackupRestore(name) {
+  let backup;
+  try {
+    backup = await DataModule.getBackup(name);
+  } catch (e) {
+    showToast(e.message.replace("[DataModule] ", ""), { type: "error" });
+    return;
+  }
+  const records = Array.isArray(backup.data.records) ? backup.data.records : [];
+  const tags = Array.isArray(backup.data.tags) ? backup.data.tags : [];
+  let dateRange = "—";
+  if (records.length) {
+    const dates = records.map((r) => r.date).sort();
+    dateRange = `${dates[0]} ~ ${dates[dates.length - 1]}`;
+  }
+  const current = DataModule.getAllRecords().length;
+  showConfirm({
+    text: `备份「${name}」：${records.length} 条记录 · ${tags.length} 个标签 · ${dateRange}\n将用备份覆盖当前 ${current} 条记录，确定恢复？`,
+    yesText: "恢复",
+    onYes: async () => {
+      try {
+        await DataModule.restoreBackup(name);
+        showToast(`已从备份恢复 ${records.length} 条记录`, { duration: 4000 });
+        bus.emit("records-changed");
+        renderBackupList();
+      } catch (e) {
+        showToast(e.message.replace("[DataModule] ", ""), { type: "error" });
+      }
+    },
+  });
+}
+
+/** 删除备份（二次确认） */
+function handleBackupDelete(name) {
+  showConfirm({
+    text: `删除备份「${name}」？此操作不可恢复`,
+    yesText: "删除",
+    onYes: async () => {
+      try {
+        const ok = await DataModule.deleteBackup(name);
+        showToast(ok ? `已删除备份：${name}` : "备份不存在");
+        renderBackupList();
+      } catch (e) {
+        showToast(e.message.replace("[DataModule] ", ""), { type: "error" });
+      }
+    },
+  });
+}
+
+/** 导出备份 → JSON Blob（dotoday_backup_时间戳.json） */
+async function handleBackupDownload(name) {
+  try {
+    const backup = await DataModule.getBackup(name);
+    const blob = new Blob([JSON.stringify(backup.data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("备份已导出为 JSON 文件");
+  } catch (e) {
+    showToast(e.message.replace("[DataModule] ", ""), { type: "error" });
+  }
+}
+
+/* ============ 日志查看 / 清空 ============ */
+
+function toggleLogPanel() {
+  logExpanded = !logExpanded;
+  $("#log-panel").hidden = !logExpanded;
+  $("#log-toggle").textContent = logExpanded ? "收起" : "展开";
+  if (logExpanded) renderLogView();
+}
+
+/** 渲染日志（最近 200 行） */
+function renderLogView() {
+  const logs = LoggerModule.getLogs();
+  const lines = logs ? logs.split("\n").filter((l) => l.trim()) : [];
+  $("#log-view").textContent = lines.slice(-200).join("\n");
+}
+
+/** 清空日志（轻确认） */
+function handleLogClear() {
+  showConfirm({
+    text: "清空全部日志？",
+    yesText: "清空",
+    onYes: () => {
+      LoggerModule.clearLogs();
+      renderLogView();
+      showToast("日志已清空");
+    },
+  });
+}
+
+/** 绑定备份/日志事件（initSettingsPage 内调用） */
+function bindBackupLogEvents() {
+  // 备份面板
+  $("#backup-toggle").addEventListener("click", toggleBackupPanel);
+  $("#backup-create").addEventListener("click", handleBackupCreate);
+  $("#backup-refresh").addEventListener("click", renderBackupList);
+  $("#backup-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-act]");
+    if (!btn) return;
+    const item = btn.closest(".backup-item");
+    if (!item) return;
+    const name = item.dataset.name;
+    const act = btn.dataset.act;
+    if (act === "restore") handleBackupRestore(name);
+    else if (act === "delete") handleBackupDelete(name);
+    else if (act === "download") handleBackupDownload(name);
+  });
+
+  // 日志面板
+  $("#log-toggle").addEventListener("click", toggleLogPanel);
+  $("#log-refresh").addEventListener("click", renderLogView);
+  $("#log-clear").addEventListener("click", handleLogClear);
+}
+
 /* ============ 事件绑定（由 app.js 启动时调用一次） ============ */
 
 export function initSettingsPage() {
@@ -531,6 +990,12 @@ export function initSettingsPage() {
   // 数据管理：文本导入
   bindImportEvents();
 
+  // 数据管理：本地备份 / 日志
+  bindBackupLogEvents();
+
   // 标签管理：新增 / 重命名 / 改色 / 删除
   bindTagManageEvents();
+
+  // GitHub 同步：上传 / 恢复
+  bindSyncEvents();
 }
