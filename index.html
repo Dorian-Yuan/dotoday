@@ -252,19 +252,110 @@
             </div>
           </div>
 
-          <!-- 导出 / 备份 / 日志（占位） -->
+          <!-- 本地备份（展开式：创建 / 列表 / 恢复 / 删除 / 下载） -->
           <div class="settings-row settings-row-stack">
             <div class="settings-row-main">
-              <span class="settings-row-label">导出 / 备份 / 日志</span>
+              <span class="settings-row-label">本地备份</span>
+              <span class="settings-row-hint">手动创建 / 恢复 / 删除 / 下载导出</span>
+            </div>
+            <button type="button" class="btn-ghost btn-sm import-toggle" id="backup-toggle">展开</button>
+          </div>
+          <div class="import-panel" id="backup-panel" hidden>
+            <div class="import-actions">
+              <button type="button" class="btn-primary btn-sm" id="backup-create">创建备份</button>
+              <button type="button" class="btn-ghost btn-sm" id="backup-refresh" hidden>刷新</button>
+            </div>
+            <div class="backup-list" id="backup-list"></div>
+          </div>
+
+          <!-- 日志查看（展开式：查看 / 刷新 / 清空） -->
+          <div class="settings-row settings-row-stack">
+            <div class="settings-row-main">
+              <span class="settings-row-label">日志查看</span>
+              <span class="settings-row-hint">应用运行日志（显示最近 200 条）</span>
+            </div>
+            <button type="button" class="btn-ghost btn-sm import-toggle" id="log-toggle">展开</button>
+          </div>
+          <div class="import-panel" id="log-panel" hidden>
+            <div class="import-actions">
+              <button type="button" class="btn-ghost btn-sm" id="log-refresh">刷新</button>
+              <button type="button" class="btn-ghost btn-sm danger" id="log-clear">清空日志</button>
+            </div>
+            <pre class="log-view" id="log-view"></pre>
+          </div>
+
+          <!-- 导出（占位） -->
+          <div class="settings-row settings-row-stack">
+            <div class="settings-row-main">
+              <span class="settings-row-label">导出</span>
               <span class="settings-row-hint">将在后续版本开放</span>
             </div>
           </div>
         </section>
 
-        <!-- 4. GitHub 同步（框架占位） -->
+        <!-- 4. GitHub 同步：加密云备份（本地为权威，上传即备份；恢复覆盖式；可收起/展开） -->
         <section class="card settings-group">
-          <h3 class="settings-group-title">GitHub 同步</h3>
-          <p class="settings-placeholder">同步功能将在后续版本开放</p>
+          <div class="settings-group-head">
+            <h3 class="settings-group-title">GitHub 同步</h3>
+            <button type="button" class="btn-ghost btn-sm import-toggle" id="sync-toggle">展开</button>
+          </div>
+
+          <!-- 面板（默认收起，与标签管理/文本导入交互一致） -->
+          <div class="sync-panel" id="sync-panel" hidden>
+            <!-- Token -->
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <span class="settings-row-label">GitHub Token</span>
+                <span class="settings-row-hint">
+                  <a href="https://github.com/settings/tokens" target="_blank" rel="noopener" class="link-btn">获取指引</a>
+                  ，需 repo 权限
+                </span>
+              </div>
+              <input type="password" class="input-text sync-input" id="sync-token" placeholder="ghp_…" autocomplete="off">
+            </div>
+
+            <!-- 仓库 -->
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <span class="settings-row-label">仓库</span>
+                <span class="settings-row-hint">格式 owner/repo</span>
+              </div>
+              <input type="text" class="input-text sync-input" id="sync-repo" placeholder="owner/repo" autocomplete="off">
+            </div>
+
+            <!-- 私钥 -->
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <span class="settings-row-label">加密私钥</span>
+                <span class="settings-row-hint">用于 AES 加密</span>
+              </div>
+              <input type="password" class="input-text sync-input" id="sync-secret" placeholder="私钥" autocomplete="off">
+            </div>
+
+            <!-- 记住私钥 -->
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <span class="settings-row-label">记住私钥</span>
+                <span class="settings-row-hint">明文保存在本机，请确认风险</span>
+              </div>
+              <input type="checkbox" class="sync-check" id="sync-remember" aria-label="记住私钥">
+            </div>
+
+            <!-- 说明 + 操作 -->
+            <div class="settings-row settings-row-stack">
+              <div class="settings-row-main">
+                <span class="settings-row-label">说明</span>
+                <span class="settings-row-hint">本地为最新数据，上传即备份；恢复会覆盖本地数据</span>
+              </div>
+              <div class="sync-actions">
+                <button type="button" class="btn-primary btn-sm" id="sync-upload">上传备份</button>
+                <button type="button" class="btn-ghost btn-sm" id="sync-restore">从 GitHub 恢复</button>
+              </div>
+            </div>
+
+            <!-- 最近上传时间 -->
+            <div class="sync-last" id="sync-last">最近上传：—</div>
+          </div>
         </section>
 
         <!-- 5. 关于 -->
@@ -391,6 +482,26 @@
           <button type="button" class="btn-ghost btn-sm" id="confirm-keep">继续编辑</button>
           <button type="button" class="btn-primary btn-sm" id="confirm-discard">放弃</button>
         </span>
+      </div>
+    </div>
+
+    <!-- ===== GitHub 恢复弹层（远端列表 → 预览 → 覆盖确认） ===== -->
+    <div class="modal-mask" id="sync-mask" hidden></div>
+    <div class="modal sync-modal" id="sync-modal" hidden role="dialog" aria-modal="true" aria-label="从 GitHub 恢复">
+      <h3 class="modal-title">从 GitHub 恢复</h3>
+      <div class="sync-modal-step" id="sync-step-list">
+        <p class="sync-modal-hint" id="sync-list-hint">远端备份：</p>
+        <div class="sync-file-list" id="sync-file-list"></div>
+      </div>
+      <div class="sync-modal-step" id="sync-step-preview" hidden>
+        <p class="sync-modal-hint" id="sync-preview-info"></p>
+        <div class="sync-preview-box" id="sync-preview-box"></div>
+        <p class="sync-modal-warn">确认后将用远端数据覆盖本地（不做合并），请谨慎操作</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="sync-modal-back" hidden>返回</button>
+        <button type="button" class="btn-ghost" id="sync-modal-cancel">取消</button>
+        <button type="button" class="btn-primary" id="sync-modal-confirm" hidden>确认覆盖</button>
       </div>
     </div>
 
