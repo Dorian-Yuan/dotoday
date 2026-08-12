@@ -1,5 +1,39 @@
 # CHANGELOG
 
+## 0.9.0（2026-08-12）— 数据管理：本地备份 + 日志查看
+
+### 新增
+
+- **本地备份管理**（数据管理分组展开式条目，与文本导入交互一致）：
+  - **手动创建备份**：「创建备份」按钮 → DataModule.createBackup(true)（强制创建，绕过当日去重）→ Toast 成功（备份名）
+  - **备份列表**：DataModule.listBackups() → 每行（备份名 + 可读时间）+ 操作（恢复 / 导出 / 删除）；空态"暂无备份，点击'创建备份'手动备份"
+  - **恢复**：选择备份 → DataModule.getBackup 预览（记录数 / 标签数 / 日期范围）→ 二次确认（"将用备份覆盖当前 N 条记录"）→ DataModule.restoreBackup 覆盖 → Toast + records-changed
+  - **删除**：单个备份删除（DataModule.deleteBackup 新增：删除 backup store 指定名称）→ 二次确认 → 列表移除
+  - **导出**：备份内容 → JSON Blob 导出（`dotoday_backup_时间戳.json`）
+- **日志查看 / 清空**（展开式条目）：LoggerModule.getLogs() 最近 200 行等宽小字显示（可滚动、空态"暂无日志"）、「刷新」按钮；「清空日志」→ 轻确认 → LoggerModule.clearLogs()
+- 数据管理分组：文本导入（已有）+ 本地备份 + 日志 + 导出占位；全部面板接入 resetCollapsiblePanels 统一收起机制
+- DataModule 新增 getBackup（预览用，不覆盖主数据）/ deleteBackup 并导出
+
+## 0.8.1（2026-08-12）— 同步分组细节调整
+
+### 改进
+
+- **加密私钥说明文案简化**：去掉算法细节（PBKDF2 / AES-GCM / 迭代次数），只写"用于 AES 加密"
+- **GitHub 同步分组支持展开/收起**：与标签管理 / 文本导入一致的交互（分组标题行 + 「展开/收起」按钮，默认收起、标题常驻；展开时刷新最近上传时间与配置回填）；面板结构与标签管理对齐（.settings-group-head + .sync-panel 顶部浅虚线分隔）
+
+## 0.8.0（2026-08-12）— GitHub 加密同步
+
+### 新增
+
+- **GitHub 同步分组（占位 → 正式；本地始终为权威数据源）**：
+  - **配置项**：GitHub Token（password 掩码 + 获取指引链接 https://github.com/settings/tokens + repo 权限说明）、仓库（owner/repo）、加密私钥（password + 「记住私钥」checkbox——勾选明文存 localStorage `dotoday:secret` 并提示风险，未勾选每次输入、关闭页面即失）；token/repo 失焦自动保存配置，最近上传时间显示
+  - **上传备份（日常）**：js/sync.js `uploadSync`——加密当前数据（records + tags + savedAt）→ PUT `current.json.enc`（固定名覆盖，带 sha 更新）+ `backup_时间戳.json.enc`（历史快照）→ 列出目录 → `planCleanup` 超 20 份通过 DELETE API 删最旧 → Toast 汇总（上传文件数 / 备份总数 / 清理数）；配置缺失（token/repo/私钥）逐一校验提示
+  - **从 GitHub 恢复（灾难）**：`listRemote` 列出远端（current + 备份：名称/大小）→ 选文件 → `fetchRemote` 下载解密 → **预览**（记录数 / 标签数 / 日期范围 / 备份时间）→ 「确认覆盖」二次确认（"将用远端数据覆盖本地 N 条记录，不做合并"）→ DataModule.replaceAll 覆盖本地 → Toast + records-changed 联动刷新
+  - **GitHub API 编排**：/repos/{owner}/{repo}/contents/dotoday-sync/ 目录；PUT/DELETE 带 sha；错误统一转清晰中文（401/403 → Token 无效或无 repo 权限、404 → 仓库不存在或目录为空、网络错误）；目录尚不存在时上传自动视为空
+- **js/sync.js**（新）：uploadSync / listRemote / fetchRemote / splitRepo，动态加载 SyncCrypto
+- **js/pure/sync-crypto.js**（新）：PBKDF2 310000 迭代派生 AES-256 密钥、AES-GCM 加密（随机 salt/iv 随密文存储）、encryptSnapshot / decryptSnapshot / buildBackupName / planCleanup（契约，fix-1 并行实现可覆盖）
+- **DataModule.replaceAll**（新）：整体覆盖本地数据（恢复场景覆盖式，不做合并）
+
 ## 0.7.2（2026-08-12）— 标签配色恢复 7 色板 + 冲突自动变体
 
 ### 改进
