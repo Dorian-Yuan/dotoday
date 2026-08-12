@@ -7,7 +7,7 @@
  */
 
 /** 应用版本号（A.B.C 规则：C=修复/优化 +1） */
-export const APP_VERSION = "0.6.2";
+export const APP_VERSION = "0.7.2";
 
 /** app_config 结构版本（plan 5.2） */
 export const CONFIG_VERSION = "0.3.0";
@@ -29,8 +29,9 @@ export const DB = {
   MAIN_KEY: "data",         // main store 固定主键
 };
 
-/** 默认标签色板（低饱和铅笔灰阶风，新建标签自动配色） */
+/** 默认标签色板（7 基础色：铅笔红 + 6 低饱和灰阶；冲突时由 resolveColor 自动生成变体） */
 export const DEFAULT_TAG_COLORS = [
+  "#9c5236", // 铅笔红
   "#9c8f84", // 灰棕
   "#8fa3a8", // 灰蓝
   "#a3a88f", // 灰绿
@@ -38,6 +39,83 @@ export const DEFAULT_TAG_COLORS = [
   "#b0a08a", // 暖灰
   "#8f9ca8", // 蓝灰
 ];
+
+/* ============ 颜色冲突自动变体（HSL 明度阶梯） ============ */
+
+function hexToHsl(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return { h: 0, s: 0, l: 0.5 };
+  const n = parseInt(m[1], 16);
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  return { h: h * 360, s, l };
+}
+
+function hslToHex(h, s, l) {
+  const hue = ((h % 360) + 360) % 360 / 360;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const f = (t) => {
+    let x = t;
+    if (x < 0) x += 1;
+    if (x > 1) x -= 1;
+    if (x < 1 / 6) return p + (q - p) * 6 * x;
+    if (x < 1 / 2) return q;
+    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+    return p;
+  };
+  const to255 = (v) => Math.round(Math.min(1, Math.max(0, v)) * 255);
+  const r = to255(f(hue + 1 / 3));
+  const g = to255(f(hue));
+  const b = to255(f(hue - 1 / 3));
+  return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+
+const clamp01 = (v) => Math.min(0.95, Math.max(0.05, v));
+
+/**
+ * 颜色变体序列：明度阶梯 ±0.15 → ±0.3 → ±0.45（夹紧），再补饱和度微调档。
+ * @param {string} base hex 色
+ * @returns {string[]} 去重变体列表（不含 base 本身）
+ */
+function colorVariants(base) {
+  const { h, s, l } = hexToHsl(base);
+  const out = [];
+  for (const dl of [0.15, -0.15, 0.3, -0.3, 0.45, -0.45]) {
+    out.push(hslToHex(h, s, clamp01(l + dl)));
+  }
+  for (const ds of [0.12, -0.12]) {
+    out.push(hslToHex(h, clamp01(s + ds), clamp01(l - 0.22)));
+  }
+  return [...new Set(out)];
+}
+
+/**
+ * 冲突自动变体：base 未被使用 → 返回 base；
+ * 已被使用 → 沿变体阶梯取第一个未使用变体；全部用尽才允许同色。
+ * @param {string} base 期望的基础色
+ * @param {string[]} usedColors 已被占用的颜色集合
+ * @returns {string} 实际应使用的颜色
+ */
+export function resolveColor(base, usedColors) {
+  const used = new Set(usedColors || []);
+  if (!used.has(base)) return base;
+  const variant = colorVariants(base).find((v) => !used.has(v));
+  return variant || base;
+}
 
 /** 功能限制值 */
 export const LIMITS = {
