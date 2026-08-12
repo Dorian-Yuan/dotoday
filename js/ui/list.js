@@ -371,10 +371,11 @@ async function restoreRecords(recs) {
   }
 }
 
-/* ============ 通用确认弹层（删除 / 批量删除） ============ */
+/* ============ 通用确认弹层（删除 / 批量删除；设置页标签管理复用） ============ */
 let confirmCallback = null;
 
-function showConfirm({ text, yesText = "删除", onYes }) {
+/** 显示确认弹层（text 内容 + yesText 按钮文案 + onYes 回调）；导出供设置页复用 */
+export function showConfirm({ text, yesText = "删除", onYes }) {
   $("#confirm-text").textContent = text;
   $("#confirm-yes").textContent = yesText;
   confirmCallback = onYes;
@@ -387,7 +388,8 @@ function showConfirm({ text, yesText = "删除", onYes }) {
   setBodyLock(true);
 }
 
-function hideConfirm() {
+/** 关闭确认弹层（导出供设置页复用） */
+export function hideConfirm() {
   confirmCallback = null;
   $("#confirm-mask").classList.remove("open");
   $("#confirm-modal").classList.remove("open");
