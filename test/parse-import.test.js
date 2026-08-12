@@ -235,3 +235,50 @@ test("parseText + expandRecords：真实场景次数展开", () => {
   // "2月2日" 省略年份：上下文推断优先于 refYear（上一条为 2024）
   assert.deepEqual(expanded[3], { date: "2024-02-02", note: "读书" });
 });
+
+// ---------- 年 + 中文月日（v0.6.2 修复） ----------
+
+test("parseText：年+中文月日多行列表（用户反馈场景，全部 ok 且年份正确）", () => {
+  const text = `2024年7月17日 (1)
+2024年7月18日 (1)
+2024年7月20日 (1)
+2024年7月21日 (1)`;
+  const items = ImportParser.parseText(text, 2026); // refYear 2026 不应影响
+  assert.equal(items.length, 4);
+  for (const item of items) {
+    assert.equal(item.ok, true); // 首行不再是坏行
+    assert.equal(item.count, 1); // (1) 次数正确提取
+    assert.ok(item.date.startsWith("2024-07-")); // 年份必须为 2024
+  }
+  assert.equal(items[0].date, "2024-07-17");
+  assert.equal(items[1].date, "2024-07-18");
+  assert.equal(items[2].date, "2024-07-20");
+  assert.equal(items[3].date, "2024-07-21");
+});
+
+test("parseText：2024年7月17号 (2)（号 + 次数）", () => {
+  const items = ImportParser.parseText("2024年7月17号 (2)", 2026);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].date, "2024-07-17");
+  assert.equal(items[0].count, 2);
+  assert.equal(items[0].ok, true);
+});
+
+test("parseText：年+中文月日与省略年份共存（上下文推断 2024）", () => {
+  const items = ImportParser.parseText("2024年1月1日\n1月2日", 2026);
+  assert.equal(items.length, 2);
+  assert.equal(items[0].date, "2024-01-01");
+  assert.equal(items[0].ok, true);
+  // "1月2日" 省略年份：用上一条的 2024，而非 refYear 2026
+  assert.equal(items[1].date, "2024-01-02");
+  assert.equal(items[1].ok, true);
+});
+
+test("parseText：原有格式回归（修复未破坏既有格式）", () => {
+  assert.equal(ImportParser.parseText("2024 1.1", 2026)[0].date, "2024-01-01");
+  assert.equal(ImportParser.parseText("2月2日", 2026)[0].date, "2026-02-02");
+  assert.equal(ImportParser.parseText("2024-01-01", 2026)[0].date, "2024-01-01");
+  assert.equal(ImportParser.parseText("1.1", 2026)[0].date, "2026-01-01");
+  // 全角 "年" 场景（normalize 后解析）
+  assert.equal(ImportParser.parseText("２０２４年７月１７日", 2026)[0].date, "2024-07-17");
+});
