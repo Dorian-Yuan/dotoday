@@ -189,10 +189,30 @@
           </div>
         </section>
 
-        <!-- 2. 标签管理（框架占位） -->
+        <!-- 2. 标签管理：可收起/展开（新增 + 列表：重命名 / 改色 / 删除） -->
         <section class="card settings-group">
-          <h3 class="settings-group-title">标签管理</h3>
-          <p class="settings-placeholder">标签管理将在后续版本开放</p>
+          <div class="settings-group-head">
+            <h3 class="settings-group-title">标签管理</h3>
+            <button type="button" class="btn-ghost btn-sm import-toggle" id="tag-manage-toggle">展开</button>
+          </div>
+
+          <!-- 面板（默认收起，与文本导入交互一致） -->
+          <div class="tag-manage-panel" id="tag-manage-panel" hidden>
+            <!-- 新增 -->
+            <div class="settings-row settings-row-stack">
+              <div class="settings-row-main">
+                <span class="settings-row-label">新建标签</span>
+                <span class="settings-row-hint">回车或点添加，自动从色系配色（同系自动区分）</span>
+              </div>
+              <div class="tag-add-row">
+                <input type="text" class="input-text" id="tag-new-input" maxlength="12" placeholder="输入标签名" autocomplete="off">
+                <button type="button" class="btn-primary btn-sm" id="tag-add-btn">添加</button>
+              </div>
+            </div>
+
+            <!-- 标签列表 -->
+            <div class="tag-manage-list" id="tag-manage-list"></div>
+          </div>
         </section>
 
         <!-- 3. 数据管理：文本导入（展开式）+ 其余占位 -->
@@ -371,6 +391,17 @@
           <button type="button" class="btn-ghost btn-sm" id="confirm-keep">继续编辑</button>
           <button type="button" class="btn-primary btn-sm" id="confirm-discard">放弃</button>
         </span>
+      </div>
+    </div>
+
+    <!-- ===== 标签改色弹层（设置页标签管理） ===== -->
+    <div class="modal-mask" id="tag-color-mask" hidden></div>
+    <div class="modal" id="tag-color-modal" hidden role="dialog" aria-modal="true" aria-label="选择标签颜色">
+      <h3 class="modal-title">标签颜色</h3>
+      <p class="modal-text" id="tag-color-name"></p>
+      <div class="tag-color-palette" id="tag-color-palette" role="radiogroup" aria-label="标签颜色"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="tag-color-cancel">取消</button>
       </div>
     </div>
 
