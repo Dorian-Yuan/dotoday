@@ -2086,6 +2086,185 @@ textarea::placeholder,
   height: 26px;
 }
 
+/* ============ GitHub 同步（设置页，可收起/展开） ============ */
+/* 面板（与标签管理面板同模式：顶部浅虚线分隔） */
+.sync-panel {
+  border-top: 1px dashed var(--line-soft);
+  margin-top: 4px;
+  padding: 0 0 8px;
+}
+.sync-input {
+  flex: 0 0 auto;
+  width: 152px;
+  height: 32px;
+  font-size: 12px;
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+.sync-check {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.sync-actions {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sync-actions .btn-sm {
+  padding: 7px 14px;
+  font-size: 13px;
+}
+.sync-last {
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--line-soft);
+  padding-top: 8px;
+}
+/* 恢复弹层 */
+.sync-modal {
+  width: min(320px, calc(100vw - 48px));
+}
+.sync-modal-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.sync-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.sync-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+.sync-file-item:hover {
+  background: var(--accent-soft);
+}
+.sync-file-item .sync-file-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sync-file-item .sync-file-size {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.sync-file-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 12px 0;
+  text-align: center;
+}
+.sync-preview-box {
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  margin-bottom: 8px;
+}
+.sync-modal-warn {
+  font-size: 12px;
+  color: var(--accent);
+  line-height: 1.6;
+}
+
+/* ============ 数据管理：本地备份 + 日志（设置页） ============ */
+/* 备份列表 */
+.backup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.backup-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+}
+.backup-item-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.backup-item-name {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.backup-item-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.backup-item-ops {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+.backup-item-ops .btn-sm {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.backup-item-ops .btn-sm.danger {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.backup-empty {
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  padding: 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+/* 日志查看区：等宽小字、可滚动 */
+.log-view {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.log-view:empty::before {
+  content: "暂无日志";
+  color: var(--text-muted);
+}
+
 /* ============ 响应式（桌面） ============ */
 @media (min-width: 768px) {
   body {
