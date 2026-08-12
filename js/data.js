@@ -14,7 +14,7 @@
  */
 
 // 常量统一来自 config.js（禁止硬编码）
-import { APP_VERSION, DB, DEFAULT_TAG_COLORS, LIMITS } from "./config.js";
+import { APP_VERSION, DB, DEFAULT_TAG_COLORS, resolveColor, LIMITS } from "./config.js";
 
 // ============ 常量 ============
 
@@ -29,11 +29,28 @@ const MAX_BACKUPS = LIMITS.BACKUP_KEEP; // 保留最近备份份数
 const DEFAULT_DATA = { version: APP_VERSION, records: [], tags: [] };
 
 /**
- * 默认标签色板：低饱和颜色（铅笔灰阶风），至少 6 个。
- * 新建标签未指定颜色时按「未被使用优先、否则轮转」自动分配。
- * 色板定义见 config.js（DEFAULT_TAG_COLORS）。
+ * 标签色板：config.js DEFAULT_TAG_COLORS（7 基础色：铅笔红 + 6 低饱和灰阶）。
+ * 冲突时由 resolveColor 自动生成变体（HSL 明度阶梯），不要求用户选档。
  */
 const DEFAULT_PALETTE = DEFAULT_TAG_COLORS;
+
+/**
+ * 自动配色：未使用的 7 基础色优先；全部用尽后按基础色顺序生成自动变体（resolveColor 同逻辑）。
+ * @param {string[]} usedColors 已使用的颜色集合
+ */
+function pickTagColor(usedColors) {
+  const used = new Set(usedColors || []);
+  // 1. 未使用的 7 基础色优先
+  const free = DEFAULT_PALETTE.find((c) => !used.has(c));
+  if (free) return free;
+  // 2. 基础色全用尽：逐个基础色取第一个未用变体
+  for (const base of DEFAULT_PALETTE) {
+    const v = resolveColor(base, [...used]);
+    if (v !== base) return v;
+  }
+  // 3. 极端：全部变体用尽，整体轮转（允许重复）
+  return DEFAULT_PALETTE[(usedColors || []).length % DEFAULT_PALETTE.length];
+}
 
 // ============ 模块内部状态 ============
 
@@ -304,9 +321,7 @@ async function addTag(name, color) {
   let finalColor = color;
   if (!finalColor) {
     const used = new Set((data.tags || []).map((t) => t.color));
-    finalColor =
-      DEFAULT_PALETTE.find((c) => !used.has(c)) ||
-      DEFAULT_PALETTE[(data.tags || []).length % DEFAULT_PALETTE.length];
+    finalColor = pickTagColor([...used]); // 7 基础色优先，冲突自动变体
   }
   const tag = { name: tagName, color: finalColor, createdAt: Date.now() };
   data.tags.push(tag);
@@ -359,6 +374,23 @@ async function deleteTag(name) {
   }
   await save();
   return affected;
+}
+
+/**
+ * changeTagColor(name, color) → 更新标签颜色
+ * 仅更新标签列表的 color 字段（记录 tags 只存名称，自动联动）；
+ * 返回更新后的标签；标签不存在或颜色非法抛错。
+ */
+async function changeTagColor(name, color) {
+  ensureBrowser();
+  if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color)) {
+    throw new Error("[DataModule] changeTagColor: 颜色格式非法");
+  }
+  const tag = (data.tags || []).find((t) => t.name === name);
+  if (!tag) throw new Error(`[DataModule] changeTagColor: 标签不存在: ${name}`);
+  tag.color = color;
+  await save();
+  return tag;
 }
 
 // ============ 备份管理 ============
@@ -502,6 +534,7 @@ export const DataModule = {
   addTag,
   renameTag,
   deleteTag,
+  changeTagColor,
   save,
   load,
   createBackup,
