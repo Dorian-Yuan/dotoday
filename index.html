@@ -195,10 +195,50 @@
           <p class="settings-placeholder">标签管理将在后续版本开放</p>
         </section>
 
-        <!-- 3. 数据管理（框架占位） -->
+        <!-- 3. 数据管理：文本导入（展开式）+ 其余占位 -->
         <section class="card settings-group">
           <h3 class="settings-group-title">数据管理</h3>
-          <p class="settings-placeholder">导入 / 导出 / 备份 / 日志将在后续版本开放</p>
+
+          <!-- 文本导入：展开/收起 -->
+          <div class="settings-row settings-row-stack" id="import-entry">
+            <div class="settings-row-main">
+              <span class="settings-row-label">文本导入</span>
+              <span class="settings-row-hint">粘贴或选择 .txt/.json 文件，批量添加记录</span>
+            </div>
+            <button type="button" class="btn-ghost btn-sm import-toggle" id="import-toggle">展开</button>
+          </div>
+
+          <!-- 导入面板（展开式） -->
+          <div class="import-panel" id="import-panel" hidden>
+            <textarea id="import-input" rows="5" placeholder="每行一条：日期 [次数] 备注&#10;示例：2024-01-01 元旦&#10;      2月2日 (3) 初二&#10;      2024.3.5 (2) 大扫除"></textarea>
+            <div class="import-actions">
+              <button type="button" class="btn-ghost btn-sm" id="import-file-btn">文件导入</button>
+              <input type="file" id="import-file" accept=".txt,.json" hidden>
+              <button type="button" class="btn-ghost btn-sm" id="import-clear" hidden>清空</button>
+              <button type="button" class="btn-primary btn-sm" id="import-parse">开始解析</button>
+            </div>
+            <div class="import-status" id="import-status" hidden></div>
+
+            <!-- 解析结果：预览（可编辑）+ 坏行 -->
+            <div class="import-preview" id="import-preview" hidden>
+              <h4 class="import-section-title">解析预览</h4>
+              <div class="import-list" id="import-ok-list"></div>
+              <h4 class="import-section-title bad" id="import-bad-title" hidden>坏行（解析失败，点击可修复）</h4>
+              <div class="import-list" id="import-bad-list"></div>
+              <div class="import-actions">
+                <button type="button" class="btn-primary btn-sm" id="import-confirm" hidden>确认导入</button>
+                <button type="button" class="btn-ghost btn-sm" id="import-reset" hidden>重置</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 导出 / 备份 / 日志（占位） -->
+          <div class="settings-row settings-row-stack">
+            <div class="settings-row-main">
+              <span class="settings-row-label">导出 / 备份 / 日志</span>
+              <span class="settings-row-hint">将在后续版本开放</span>
+            </div>
+          </div>
         </section>
 
         <!-- 4. GitHub 同步（框架占位） -->

@@ -7,7 +7,7 @@
  */
 
 /** 应用版本号（A.B.C 规则：C=修复/优化 +1） */
-export const APP_VERSION = "0.5.2";
+export const APP_VERSION = "0.6.1";
 
 /** app_config 结构版本（plan 5.2） */
 export const CONFIG_VERSION = "0.3.0";
