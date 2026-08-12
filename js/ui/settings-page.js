@@ -10,9 +10,10 @@
  */
 
 import { $, $$, esc, bus } from "./common.js";
-import { APP_VERSION, loadConfig, saveConfig, getPref } from "../config.js";
+import { APP_VERSION, loadConfig, saveConfig, getPref, DEFAULT_TAG_COLORS, resolveColor } from "../config.js";
 import { DataModule } from "../data.js";
 import { showToast } from "./toast.js";
+import { showConfirm } from "./list.js";
 
 /** 热力图主色色板：第一项为默认铅笔红（null 跟随主题 --accent），其余低饱和铅笔灰阶 */
 const HEAT_PALETTE = [
@@ -92,13 +93,14 @@ function renderSwatches() {
   ).join("");
 }
 
-/** 渲染设置页（版本号 + 全部选项选中态 + 色板 + 图表配色变量） */
+/** 渲染设置页（版本号 + 全部选项选中态 + 色板 + 图表配色变量 + 标签列表） */
 export function renderSettingsPage() {
   $("#settings-version").textContent = "v" + APP_VERSION;
   syncChips("weekStartDay");
   syncChips("defaultSortOrder");
   renderSwatches();
   applyChartColors(getPref("heatmapColor"));
+  renderTagManage();
 }
 
 /* ============ 配置保存（读改写，保留其余字段） ============ */
@@ -298,6 +300,203 @@ function bindImportEvents() {
   });
 }
 
+/* ============ 标签管理（新增 / 重命名 / 改色 / 删除，联动记录页与统计页） ============ */
+
+let tagManageExpanded = false; // 标签管理分组展开状态（默认收起，与文本导入一致）
+
+/** 展开/收起标签管理分组 */
+function toggleTagManage() {
+  tagManageExpanded = !tagManageExpanded;
+  $("#tag-manage-panel").hidden = !tagManageExpanded;
+  $("#tag-manage-toggle").textContent = tagManageExpanded ? "收起" : "展开";
+  if (tagManageExpanded) renderTagManage(); // 展开时刷新列表
+}
+
+/** 标签使用次数（统计自全部记录） */
+function tagUsage(name) {
+  return DataModule.getAllRecords().filter((r) => Array.isArray(r.tags) && r.tags.includes(name)).length;
+}
+
+/** 渲染标签列表（色点 / 名称 / 次数 / 操作；空态提示） */
+function renderTagManage() {
+  const tags = DataModule.getTags();
+  const list = $("#tag-manage-list");
+  if (!tags.length) {
+    list.innerHTML = `<div class="tag-manage-empty">还没有标签，输入上方新建</div>`;
+    return;
+  }
+  list.innerHTML = tags
+    .map(
+      (t) => `<div class="tag-manage-item" data-name="${esc(t.name)}">
+        <i class="tag-row-dot" style="background:${esc(t.color)}" aria-hidden="true"></i>
+        <span class="tag-manage-name" title="${esc(t.name)}">${esc(t.name)}</span>
+        <span class="tag-manage-count">× ${tagUsage(t.name)}</span>
+        <span class="tag-manage-ops">
+          <button type="button" class="btn-ghost btn-sm" data-act="rename">重命名</button>
+          <button type="button" class="btn-ghost btn-sm" data-act="color">改色</button>
+          <button type="button" class="btn-ghost btn-sm danger" data-act="delete">删除</button>
+        </span>
+      </div>`
+    )
+    .join("");
+}
+
+/** 新增标签（空名 / 重名提示） */
+async function addTagFlow(name) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) {
+    showToast("标签名不能为空", { type: "error" });
+    return;
+  }
+  try {
+    await DataModule.addTag(trimmed); // 自动从色板配色
+    showToast(`已添加标签「${trimmed}」`);
+    $("#tag-new-input").value = "";
+    // 先刷新标签列表（不依赖 records-changed 订阅者成败，避免级联失败导致列表不更新）
+    renderTagManage();
+    bus.emit("records-changed");
+  } catch (e) {
+    showToast(e.message.replace("[DataModule] ", ""), { type: "error" });
+  }
+}
+
+/** 重命名：行内编辑（回车提交 / Esc 取消 / 失焦提交），同步更新所有记录 */
+function startTagRename(name, row) {
+  const nameEl = row.querySelector(".tag-manage-name");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "input-text tag-rename-input";
+  input.value = name;
+  input.maxLength = 12;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = async (commit) => {
+    if (done) return;
+    done = true;
+    const val = input.value.trim();
+    if (commit && val && val !== name) {
+      try {
+        const affected = await DataModule.renameTag(name, val);
+        showToast(`已重命名「${name}」→「${val}」${affected ? `（更新 ${affected} 条记录）` : ""}`);
+        renderTagManage(); // 先刷新列表（不依赖 records-changed 订阅者成败）
+        bus.emit("records-changed");
+        return; // 成功：已刷新
+      } catch (e) {
+        showToast(e.message.replace("[DataModule] ", ""), { type: "error" });
+        // 失败：落到末尾恢复行显示
+      }
+    }
+    renderTagManage(); // 失败 / 未修改 / Esc 取消：恢复行显示
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") finish(true);
+    else if (e.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
+}
+
+/** 改色：7 色板弹层（简单圆点行，当前色双圈高亮；冲突由 resolveColor 自动变体） */
+let tagColorTarget = null; // 当前改色目标标签名
+
+function openTagColorPicker(name, currentColor) {
+  tagColorTarget = name;
+  $("#tag-color-name").textContent = `「${name}」`;
+  $("#tag-color-palette").innerHTML = DEFAULT_TAG_COLORS.map(
+    (c) =>
+      `<button type="button" class="color-dot${c === currentColor ? " on" : ""}" data-value="${c}" title="${c}" aria-label="${c}" style="background:${c}"></button>`
+  ).join("");
+  $("#tag-color-mask").hidden = false;
+  $("#tag-color-modal").hidden = false;
+  requestAnimationFrame(() => {
+    $("#tag-color-mask").classList.add("open");
+    $("#tag-color-modal").classList.add("open");
+  });
+}
+
+function closeTagColorPicker() {
+  $("#tag-color-mask").classList.remove("open");
+  $("#tag-color-modal").classList.remove("open");
+  setTimeout(() => {
+    $("#tag-color-mask").hidden = true;
+    $("#tag-color-modal").hidden = true;
+  }, 220);
+}
+
+/** 删除标签：二次确认 → 全局删除（同步移除记录引用） */
+function deleteTagFlow(name) {
+  const usage = tagUsage(name);
+  showConfirm({
+    text: `删除标签「${name}」？将同步移除 ${usage} 条记录中的该标签`,
+    yesText: "删除",
+    onYes: async () => {
+      try {
+        const affected = await DataModule.deleteTag(name);
+        showToast(`已删除标签「${name}」${affected ? `（移除 ${affected} 条记录中的引用）` : ""}`);
+        renderTagManage(); // 先刷新列表（不依赖 records-changed 订阅者成败）
+        bus.emit("records-changed");
+      } catch (e) {
+        showToast(e.message.replace("[DataModule] ", ""), { type: "error" });
+      }
+    },
+  });
+}
+
+/** 绑定标签管理事件（initSettingsPage 内调用） */
+function bindTagManageEvents() {
+  // 分组展开/收起
+  $("#tag-manage-toggle").addEventListener("click", toggleTagManage);
+
+  // 新增：按钮 + 回车
+  $("#tag-add-btn").addEventListener("click", () => addTagFlow($("#tag-new-input").value));
+  $("#tag-new-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") addTagFlow(e.target.value);
+  });
+
+  // 列表操作：重命名 / 改色 / 删除
+  $("#tag-manage-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-act]");
+    if (!btn) return;
+    const row = btn.closest(".tag-manage-item");
+    if (!row) return;
+    const name = row.dataset.name;
+    const act = btn.dataset.act;
+    if (act === "rename") startTagRename(name, row);
+    else if (act === "color") {
+      const t = DataModule.getTags().find((x) => x.name === name);
+      if (t) openTagColorPicker(name, t.color);
+    } else if (act === "delete") deleteTagFlow(name);
+  });
+
+  // 改色弹层（7 色板；选中已用色 → 自动变体区分）
+  $("#tag-color-palette").addEventListener("click", async (e) => {
+    const dot = e.target.closest(".color-dot");
+    if (!dot || !tagColorTarget) return;
+    // 冲突变体：目标色被其他标签占用 → resolveColor 自动微调（明度阶梯）
+    const usedByOthers = DataModule.getTags()
+      .filter((t) => t.name !== tagColorTarget)
+      .map((t) => t.color);
+    const resolved = resolveColor(dot.dataset.value, usedByOthers);
+    const autoAdjusted = resolved !== dot.dataset.value;
+    try {
+      await DataModule.changeTagColor(tagColorTarget, resolved);
+      showToast(
+        autoAdjusted
+          ? "该色已被使用，已自动微调以区分"
+          : `已更新「${tagColorTarget}」的颜色`
+      );
+      renderTagManage(); // 先刷新列表（不依赖 records-changed 订阅者成败）
+      bus.emit("records-changed");
+    } catch (err) {
+      showToast(err.message.replace("[DataModule] ", ""), { type: "error" });
+    }
+    closeTagColorPicker();
+  });
+  $("#tag-color-cancel").addEventListener("click", closeTagColorPicker);
+  $("#tag-color-mask").addEventListener("click", closeTagColorPicker);
+}
+
 /* ============ 事件绑定（由 app.js 启动时调用一次） ============ */
 
 export function initSettingsPage() {
@@ -331,4 +530,7 @@ export function initSettingsPage() {
 
   // 数据管理：文本导入
   bindImportEvents();
+
+  // 标签管理：新增 / 重命名 / 改色 / 删除
+  bindTagManageEvents();
 }
