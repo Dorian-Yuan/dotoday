@@ -136,8 +136,9 @@ async function load() {
   const stored = await reqPromise(getStore(STORE_MAIN, "readonly").get(MAIN_KEY));
   if (stored && stored.records) {
     // 兜底校验结构完整性，避免脏数据导致崩溃
+    // version 同步到当前应用版本（数据格式未变时版本号随应用升级；结构迁移仍走 migrate 预留接口）
     data = {
-      version: stored.version || APP_VERSION,
+      version: APP_VERSION,
       records: Array.isArray(stored.records) ? stored.records : [],
       tags: Array.isArray(stored.tags) ? stored.tags : [],
     };
@@ -155,6 +156,7 @@ async function save() {
   ensureBrowser();
   if (!db) db = await openDB();
   if (!data) data = clone(DEFAULT_DATA);
+  data.version = APP_VERSION; // 保存时同步版本号（导出/备份/同步的存档始终带当前应用版本）
 
   let lastError = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -446,6 +448,26 @@ async function restoreBackup(name) {
   return data;
 }
 
+/** getBackup(name) → 读取备份完整内容（恢复预览用，不覆盖主数据），返回 {name, data, createdAt} */
+async function getBackup(name) {
+  ensureBrowser();
+  if (!db) db = await openDB();
+  const backup = await reqPromise(getStore(STORE_BACKUP, "readonly").get(name));
+  if (!backup) throw new Error(`[DataModule] getBackup: 备份不存在: ${name}`);
+  return clone(backup);
+}
+
+/** deleteBackup(name) → 删除指定备份；成功返回 true，不存在返回 false */
+async function deleteBackup(name) {
+  ensureBrowser();
+  if (!db) db = await openDB();
+  const store = getStore(STORE_BACKUP, "readwrite");
+  const existed = await reqPromise(store.get(name));
+  if (!existed) return false;
+  await reqPromise(store.delete(name));
+  return true;
+}
+
 /** cleanOldBackups() → 清理旧备份，仅保留最近 10 份，返回删除份数 */
 async function cleanOldBackups() {
   ensureBrowser();
@@ -501,6 +523,18 @@ function mergeData(local, remote) {
   };
 }
 
+/**
+ * replaceAll({records, tags}) → 整体覆盖本地数据（GitHub 恢复场景：覆盖式，不做合并）
+ * 返回 {records, tags} 数量。
+ */
+async function replaceAll({ records, tags }) {
+  ensureBrowser();
+  data.records = Array.isArray(records) ? records : [];
+  data.tags = Array.isArray(tags) ? tags : [];
+  await save();
+  return { records: data.records.length, tags: data.tags.length };
+}
+
 // ============ 初始化 ============
 
 /**
@@ -540,6 +574,9 @@ export const DataModule = {
   createBackup,
   listBackups,
   restoreBackup,
+  getBackup,
+  deleteBackup,
   cleanOldBackups,
   mergeData,
+  replaceAll,
 };
