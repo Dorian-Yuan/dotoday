@@ -1,5 +1,5 @@
 /**
- * config.js —— DoToday 应用常量与配置管理（v0.1.1）
+ * config.js —— DoToday 应用常量与配置管理（v0.6.2）
  *
  * 集中所有应用常量（版本号 / 存储键 / 色板 / 限制值 / 缓存名等），
  * 所有 js 模块统一从这里 import，禁止散落魔法数字。
@@ -7,7 +7,7 @@
  */
 
 /** 应用版本号（A.B.C 规则：C=修复/优化 +1） */
-export const APP_VERSION = "0.6.1";
+export const APP_VERSION = "0.6.2";
 
 /** app_config 结构版本（plan 5.2） */
 export const CONFIG_VERSION = "0.3.0";
