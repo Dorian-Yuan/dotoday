@@ -95,22 +95,25 @@ function renderSwatches() {
   ).join("");
 }
 
-/** 统一重置可收起面板（文本导入 / 标签管理 / 本地备份 / 日志 / GitHub 同步）：
+/** 统一重置可收起面板（文本导入 / 本地备份 / 日志 / 导出 / 标签管理 / GitHub 同步）：
  *  每次进入设置页强制回到收起态（模块状态与 DOM 同步，避免切 Tab 后状态脱节） */
 function resetCollapsiblePanels() {
   importExpanded = false;
-  tagManageExpanded = false;
   backupExpanded = false;
   logExpanded = false;
+  exportExpanded = false;
+  tagManageExpanded = false;
   syncExpanded = false;
   $("#import-panel").hidden = true;
   $("#import-toggle").textContent = "展开";
-  $("#tag-manage-panel").hidden = true;
-  $("#tag-manage-toggle").textContent = "展开";
   $("#backup-panel").hidden = true;
   $("#backup-toggle").textContent = "展开";
   $("#log-panel").hidden = true;
   $("#log-toggle").textContent = "展开";
+  $("#export-panel").hidden = true;
+  $("#export-toggle").textContent = "展开";
+  $("#tag-manage-panel").hidden = true;
+  $("#tag-manage-toggle").textContent = "展开";
   $("#sync-panel").hidden = true;
   $("#sync-toggle").textContent = "展开";
 }
@@ -956,6 +959,107 @@ function bindBackupLogEvents() {
   $("#log-clear").addEventListener("click", handleLogClear);
 }
 
+/* ============ 数据导出（格式 / 筛选 / 脱敏 / Blob 下载） ============ */
+
+let exportExpanded = false;
+
+function toggleExportPanel() {
+  exportExpanded = !exportExpanded;
+  $("#export-panel").hidden = !exportExpanded;
+  $("#export-toggle").textContent = exportExpanded ? "收起" : "展开";
+  if (exportExpanded) renderExportPanel();
+}
+
+/** 渲染导出面板：标签下拉填充（"全部" + 现有标签） */
+function renderExportPanel() {
+  const tags = DataModule.getTags();
+  const cur = $("#export-tag").value;
+  $("#export-tag").innerHTML =
+    `<option value="">全部</option>` +
+    tags.map((t) => `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join("");
+  if (cur && tags.some((t) => t.name === cur)) $("#export-tag").value = cur;
+}
+
+/** 时间戳文件名：dotoday_export_YYYYMMDD_HHMMSS.ext */
+function exportFileName(ext) {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `dotoday_export_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext}`;
+}
+
+/** 触发 Blob 下载 */
+function downloadBlob(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** 动态加载 ExportModule（未就绪返回 null） */
+async function loadExportModule() {
+  try {
+    const mod = await import("../export.js");
+    return mod.ExportModule || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** 导出：收集筛选 → applyFilters → 空提示 → toX → Blob 下载（CSV 加 BOM） */
+async function handleExport() {
+  const fmt = document.querySelector("#export-format .chip.on").dataset.value;
+  const start = document.getElementById("export-start").value || null;
+  const end = document.getElementById("export-end").value || null;
+  const rating = document.getElementById("export-rating").value;
+  const tag = document.getElementById("export-tag").value;
+  const desensitize = document.getElementById("export-desensitize").checked;
+
+  const exp = await loadExportModule();
+  if (!exp) {
+    showToast("导出模块未就绪，请稍后重试", { type: "error" });
+    return;
+  }
+  const records = exp.applyFilters(DataModule.getAllRecords(), {
+    start,
+    end,
+    rating: rating === "" ? null : Number(rating),
+    tags: tag ? [tag] : [],
+  });
+  if (!records.length) {
+    showToast("没有符合筛选条件的记录", { type: "error" });
+    return;
+  }
+  const options = { desensitize };
+  let content;
+  let mime;
+  if (fmt === "json") {
+    content = exp.toJSON(records, options);
+    mime = "application/json";
+  } else if (fmt === "csv") {
+    content = "\uFEFF" + exp.toCSV(records, options); // UTF-8 BOM（Excel 兼容）
+    mime = "text/csv;charset=utf-8";
+  } else {
+    content = exp.toTXT(records, options);
+    mime = "text/plain;charset=utf-8";
+  }
+  downloadBlob(content, exportFileName(fmt), mime);
+  showToast(`已导出 ${records.length} 条记录（${fmt.toUpperCase()}${desensitize ? "，已脱敏" : ""}）`, { duration: 4000 });
+}
+
+/** 绑定导出事件（initSettingsPage 内调用） */
+function bindExportEvents() {
+  $("#export-toggle").addEventListener("click", toggleExportPanel);
+  $("#export-format").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    $$("#export-format .chip").forEach((c) => c.classList.toggle("on", c === chip));
+  });
+  $("#export-btn").addEventListener("click", handleExport);
+}
+
 /* ============ 事件绑定（由 app.js 启动时调用一次） ============ */
 
 export function initSettingsPage() {
@@ -992,6 +1096,9 @@ export function initSettingsPage() {
 
   // 数据管理：本地备份 / 日志
   bindBackupLogEvents();
+
+  // 数据管理：导出
+  bindExportEvents();
 
   // 标签管理：新增 / 重命名 / 改色 / 删除
   bindTagManageEvents();
