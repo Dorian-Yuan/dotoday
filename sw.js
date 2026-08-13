@@ -1,20 +1,21 @@
 /**
- * sw.js —— Service Worker 离线缓存（DoToday v0.1.1）
+ * sw.js —— Service Worker 离线缓存（DoToday v0.11.1）
  *
  * 策略：
  *   - install：预缓存核心静态资源（个别失败不阻塞安装）
  *   - fetch：cache-first，缓存未命中回退网络并顺手写入缓存（同源 GET）
- *   - activate：清理旧版本缓存
+ *   - activate：清理旧版本缓存 + 通知页面"新版本已就绪"
  *
- * 版本控制：CACHE_NAME 来自 config.js（"dotoday-" + APP_VERSION），
- * 发布时递增 APP_VERSION → 触发新缓存安装与旧缓存清理。
- * 注意：本文件以 module 类型注册（app.js register 时 { type: "module" }），
- * 老浏览器不支持时注册失败静默降级（无离线缓存，不影响使用）。
+ * ⚠️ 版本控制（关键）：浏览器只在 sw.js 文件本身字节变化时才会更新 Service Worker。
+ *   因此 CACHE_VERSION 必须在这里【硬编码】，每次发布递增——只改 config.js 的
+ *   APP_VERSION 不会触发 SW 更新，旧缓存将永远返回旧资源（cache-first）。
  */
 
-import { CACHE_NAME } from "./js/config.js";
+/** ⚠️ 发布时必须更新此常量（与 config.js APP_VERSION 保持同步） */
+const CACHE_VERSION = "v0.11.1";
+const CACHE_NAME = "dotoday-" + CACHE_VERSION;
 
-/** 核心资源清单（与 index.html / js 引用保持一致） */
+/** 核心资源清单（与 index.html / js 引用保持一致，发布时核对） */
 const CORE_ASSETS = [
   "./",
   "index.html",
@@ -23,9 +24,14 @@ const CORE_ASSETS = [
   "js/config.js",
   "js/app.js",
   "js/pure/date-utils.js",
+  "js/pure/stats.js",
+  "js/pure/parse-import.js",
+  "js/pure/sync-crypto.js",
   "js/data.js",
   "js/logger.js",
   "js/icon-config.js",
+  "js/export.js",
+  "js/sync.js",
   "js/ui/common.js",
   "js/ui/state.js",
   "js/ui/tabs.js",
@@ -34,7 +40,10 @@ const CORE_ASSETS = [
   "js/ui/list.js",
   "js/ui/form.js",
   "js/ui/date-picker.js",
+  "js/ui/date-range-picker.js",
   "js/ui/time-wheel.js",
+  "js/ui/stats-page.js",
+  "js/ui/settings-page.js",
   "icons/icon-192.png",
   "icons/icon-512.png",
 ];
@@ -51,7 +60,7 @@ self.addEventListener("install", (event) => {
   );
 });
 
-/** activate：清理旧版本缓存，立即接管页面 */
+/** activate：清理旧版本缓存，立即接管页面，并通知页面"新版本已就绪" */
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -64,6 +73,11 @@ self.addEventListener("activate", (event) => {
         )
       )
       .then(() => self.clients.claim())
+      .then(() =>
+        self.clients
+          .matchAll({ type: "window" })
+          .then((clients) => clients.forEach((c) => c.postMessage({ type: "SW_UPDATE_READY" })))
+      )
   );
 });
 
