@@ -284,11 +284,62 @@
             <pre class="log-view" id="log-view"></pre>
           </div>
 
-          <!-- 导出（占位） -->
+          <!-- 导出数据（展开式：格式 / 筛选 / 脱敏 / 导出按钮） -->
           <div class="settings-row settings-row-stack">
             <div class="settings-row-main">
-              <span class="settings-row-label">导出</span>
-              <span class="settings-row-hint">将在后续版本开放</span>
+              <span class="settings-row-label">导出数据</span>
+              <span class="settings-row-hint">JSON / CSV / TXT，支持筛选与脱敏</span>
+            </div>
+            <button type="button" class="btn-ghost btn-sm import-toggle" id="export-toggle">展开</button>
+          </div>
+          <div class="import-panel" id="export-panel" hidden>
+            <!-- 格式 -->
+            <div class="export-row">
+              <span class="export-label">格式</span>
+              <div class="settings-options" id="export-format">
+                <button type="button" class="chip on" data-value="json">JSON</button>
+                <button type="button" class="chip" data-value="csv">CSV</button>
+                <button type="button" class="chip" data-value="txt">TXT</button>
+              </div>
+            </div>
+            <!-- 时间范围 -->
+            <div class="export-row">
+              <span class="export-label">时间范围</span>
+              <div class="export-date-range">
+                <input type="date" class="input-text export-date" id="export-start" aria-label="开始日期">
+                <span class="export-sep">至</span>
+                <input type="date" class="input-text export-date" id="export-end" aria-label="结束日期">
+              </div>
+            </div>
+            <!-- 评分 -->
+            <div class="export-row">
+              <span class="export-label">评分</span>
+              <select class="input-text export-select" id="export-rating">
+                <option value="">全部</option>
+                <option value="1">1 星</option>
+                <option value="2">2 星</option>
+                <option value="3">3 星</option>
+                <option value="4">4 星</option>
+                <option value="5">5 星</option>
+              </select>
+            </div>
+            <!-- 标签 -->
+            <div class="export-row">
+              <span class="export-label">标签</span>
+              <select class="input-text export-select" id="export-tag">
+                <option value="">全部</option>
+              </select>
+            </div>
+            <!-- 脱敏 -->
+            <div class="export-row">
+              <span class="export-label">脱敏</span>
+              <label class="export-desensitize">
+                <input type="checkbox" id="export-desensitize" aria-label="脱敏">
+                <span>仅保留日期与评分，用于分享</span>
+              </label>
+            </div>
+            <div class="import-actions">
+              <button type="button" class="btn-primary btn-sm" id="export-btn">导出</button>
             </div>
           </div>
         </section>
