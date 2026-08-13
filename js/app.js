@@ -42,6 +42,14 @@ function registerSW() {
   if (!("serviceWorker" in navigator)) return;
   navigator.serviceWorker
     .register("./sw.js", { type: "module" })
+    .then(() => {
+      // 新版本 SW 激活后提示刷新（sw.js activate 发送 SW_UPDATE_READY）
+      navigator.serviceWorker.addEventListener("message", (e) => {
+        if (e.data && e.data.type === "SW_UPDATE_READY") {
+          showToast("发现新版本，请刷新页面后使用", { duration: 4000 });
+        }
+      });
+    })
     .catch((err) => {
       LoggerModule.warn("Service Worker 注册失败（不影响使用）: " + err.message);
     });
