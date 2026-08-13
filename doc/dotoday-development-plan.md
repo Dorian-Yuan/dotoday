@@ -1,6 +1,6 @@
 # DoToday（做了么）- Web PWA 应用开发计划
 
-> 版本: 0.11.0 | 日期: 2026-08-11 | 开发者: Hau
+> 版本: 0.11.1 | 日期: 2026-08-13 | 开发者: Hau
 >
 > 本文档经过与开发者的深度 brainstorming 修订（2026-08-10），
 > 全部需求点均已逐条确认。变更历史见文末「十一、文档修订记录」。
@@ -1032,6 +1032,13 @@ ServiceWorker
 ***
 
 ## 十一、文档修订记录
+
+### 0.11.1（2026-08-13）— Service Worker 更新机制修复
+
+**修复**：
+* **SW 缓存永不更新（线上更新不生效）**：CACHE_VERSION 原动态 import 自 config.js，sw.js 字节不变导致浏览器不更新 SW、旧缓存永远返回旧资源——改为 **sw.js 内硬编码 CACHE_VERSION**（发布时递增，sw.js 字节变化触发更新）；CORE_ASSETS 补齐全部模块
+* 新版本提示：SW 激活发送 SW_UPDATE_READY → 页面 Toast"发现新版本，请刷新页面后使用"
+* 发布约定补充：**每次发布必须同时递增 config.js APP_VERSION 与 sw.js CACHE_VERSION**
 
 ### 0.11.0（2026-08-11）— 图标替换为 Lucide（v0.11.0 功能）
 
