@@ -7,7 +7,7 @@
  */
 
 /** 应用版本号（A.B.C 规则：C=修复/优化 +1） */
-export const APP_VERSION = "0.11.1";
+export const APP_VERSION = "0.12.1";
 
 /** app_config 结构版本（plan 5.2） */
 export const CONFIG_VERSION = "0.3.0";
@@ -152,12 +152,32 @@ export const CACHE_NAME = "dotoday-" + APP_VERSION;
 /** 列表排序方式（plan 2.2） */
 export const SORT_ORDERS = ["dateAsc", "dateDesc", "rating", "tag"];
 
+/** 统计图表默认顺序（与 index.html #stats-charts 卡片初始顺序一致） */
+export const DEFAULT_CHART_ORDER = ["monthly", "trend", "rating", "heatmap", "weekday", "period", "tags"];
+
+/** 统计图表默认显示状态（全开） */
+export const DEFAULT_CHART_VISIBLE = {
+  monthly: true,
+  trend: true,
+  rating: true,
+  heatmap: true,
+  weekday: true,
+  period: true,
+  tags: true,
+};
+
 /** app_config 默认值（plan 5.2 结构） */
 export const DEFAULT_CONFIG = {
   version: CONFIG_VERSION,
   appVersion: APP_VERSION,
   debug: { enabled: false, logLevel: "error" },
-  preferences: { weekStartDay: "monday", defaultSortOrder: "dateDesc", heatmapColor: null },
+  preferences: {
+    weekStartDay: "monday",
+    defaultSortOrder: "dateDesc",
+    heatmapColor: null,
+    chartOrder: DEFAULT_CHART_ORDER,
+    chartVisible: DEFAULT_CHART_VISIBLE,
+  },
   sync: { githubToken: "", repo: "", lastSyncAt: null },
   createdAt: null, // 首次使用标记（用于欢迎提示）
 };
@@ -167,7 +187,8 @@ export const DEFAULT_CONFIG = {
 /** 内存缓存（避免重复读写 localStorage） */
 let _config = null;
 
-/** 读取配置；不存在或损坏时自动生成默认值；首次读取后缓存 */
+/** 读取配置；不存在或损坏时自动生成默认值；首次读取后缓存
+ *  注意：preferences 需深合并（旧配置缺新字段时补齐默认值） */
 export function loadConfig() {
   if (_config) return _config;
   let saved = null;
@@ -177,6 +198,7 @@ export function loadConfig() {
     /* 配置损坏则回退默认值（不依赖 logger，避免循环引用） */
   }
   _config = Object.assign({}, DEFAULT_CONFIG, saved || {});
+  _config.preferences = Object.assign({}, DEFAULT_CONFIG.preferences, (saved && saved.preferences) || {});
   saveConfig(_config);
   return _config;
 }
