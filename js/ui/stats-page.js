@@ -38,6 +38,10 @@ function call(name, ...args) {
 let rangeKey = "month"; // week / month / year / all / custom
 let customStart = "";
 let customEnd = "";
+let statsYear = new Date().getFullYear(); // 统计页年份（"本年"chip 选择，热力图跟随）
+
+/** 统计页年份选择范围：2023 ~ 当前年 */
+const YEAR_MIN = 2023;
 
 function dateCN(d) {
   const x = DateUtils.parseDate(d);
@@ -58,8 +62,10 @@ function computeRange() {
       const start = DateUtils.formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
       return { start, end: today, label: `${now.getFullYear()}年${now.getMonth() + 1}月` };
     }
-    case "year":
-      return { start: `${now.getFullYear()}-01-01`, end: today, label: `${now.getFullYear()}年` };
+    case "year": {
+      // 所选年份全年 1/1-12/31
+      return { start: `${statsYear}-01-01`, end: `${statsYear}-12-31`, label: `${statsYear}年` };
+    }
     case "all":
       return { start: null, end: null, label: "全部时间" };
     default:
@@ -300,9 +306,9 @@ function renderRatingChart(records, range) {
   el.dataset.ratingTotal = String(total);
 }
 
-/* ============ 日历热力图（近 1 年 52 格每周一格；年份自定义；格子 tooltip） ============ */
-let heatMode = "recent"; // "recent"（近1年）| "year-YYYY"（指定年）
-let heatYear = new Date().getFullYear();
+/* ============ 日历热力图（默认近一年；统计页"本年"两段式：首次直切、再次弹年份选择器） ============ */
+let heatMode = "recent"; // "recent"（近1年，默认）| "year-YYYY"（指定年）
+let heatYear = statsYear;
 
 function dateCNFull(ds) {
   const d = DateUtils.parseDate(ds);
@@ -385,12 +391,29 @@ function renderHeatmap() {
   $("#heatmap-switch .chip").textContent = heatMode === "recent" ? "近1年" : `${heatYear}年`;
 }
 
-function openHeatmapYearPicker() {
+/**
+ * 年份选择器（复用 hy-picker 弹层，两个入口共用）：
+ *   source="stats"   → 统计页"本年"chip（再次点击时）："近一年" + 2023 ~ 当前年；
+ *                      选具体年份 → 统计范围与热力图同步；选"近一年" → 仅热力图切近一年，范围保持"本年"
+ *   source="heatmap" → 热力图 chip："近1年" + 当前年及前 3 年；选具体年份 → 回写统计页年份（双向同步）
+ */
+let yearPickerSource = "stats";
+
+function openYearPicker(source) {
+  yearPickerSource = source;
   const yearNow = new Date().getFullYear();
-  const opts = [{ mode: "recent", label: "近1年" }];
-  for (let y = yearNow; y >= yearNow - 3; y--) opts.push({ mode: "year-" + y, label: `${y}年` });
+  let opts = [];
+  if (source === "heatmap") {
+    opts = [{ mode: "recent", label: "近1年" }];
+    for (let y = yearNow; y >= yearNow - 3; y--) opts.push({ mode: "year-" + y, label: `${y}年` });
+  } else {
+    opts = [{ mode: "recent", label: "近一年" }];
+    for (let y = yearNow; y >= YEAR_MIN; y--) opts.push({ mode: "year-" + y, label: `${y}年` });
+  }
+  // 高亮：热力图源用 heatMode；统计页源用当前年份（当前年即"本年"）
+  const current = source === "heatmap" ? heatMode : "year-" + statsYear;
   $("#hy-options").innerHTML = opts
-    .map((o) => `<button type="button" class="hy-opt${heatMode === o.mode ? " on" : ""}" data-mode="${o.mode}">${o.label}</button>`)
+    .map((o) => `<button type="button" class="hy-opt${current === o.mode ? " on" : ""}" data-mode="${o.mode}">${o.label}</button>`)
     .join("");
   $("#hy-mask").hidden = false;
   $("#hy-picker").hidden = false;
@@ -398,6 +421,36 @@ function openHeatmapYearPicker() {
     $("#hy-mask").classList.add("open");
     $("#hy-picker").classList.add("open");
   });
+}
+
+/** 统计页年份选择：设置年份 → 范围与热力图同步切换 */
+function pickStatsYear(year) {
+  statsYear = year;
+  rangeKey = "year";
+  heatMode = "year-" + year;
+  heatYear = year;
+  renderStatsPage();
+}
+
+/** 统计页选择器选"近一年"：仅热力图切近一年，统计范围保持"本年"（chip 不变） */
+function pickStatsRecent() {
+  heatMode = "recent";
+  renderHeatmap();
+}
+
+/** 热力图年份切换（hy-picker 入口）：选具体年份 → 回写统计页年份（双向同步）；"近1年"仅热力图 */
+function pickHeatmapMode(mode) {
+  if (mode === "recent") {
+    heatMode = "recent";
+    renderHeatmap();
+    return;
+  }
+  const year = Number(mode.slice(5));
+  heatMode = mode;
+  heatYear = year;
+  statsYear = year;   // 双向同步：热力图年份回写统计页
+  rangeKey = "year";
+  renderStatsPage();
 }
 
 function closeHeatmapYearPicker() {
@@ -495,17 +548,40 @@ function renderTagChart(records, range) {
   el.dataset.chartType = "tags";
 }
 
-/* ============ 图表区渲染 ============ */
+/* ============ 图表区渲染（按设置页配置排序 + 可见性过滤；单月隐藏柱状/折线叠加） ============ */
 function renderCharts(records, range, singleMonth) {
-  if (!singleMonth) {
-    renderMonthlyChart(records, range);
-    renderTrendChart(records, range);
+  const order = getPref("chartOrder") || ["monthly", "trend", "rating", "heatmap", "weekday", "period", "tags"];
+  const visible = getPref("chartVisible") || {};
+  // 1. DOM 顺序按 chartOrder 重排
+  const chartsEl = $("#stats-charts");
+  for (const key of order) {
+    const card = chartsEl.querySelector(`[data-chart="${key}"]`);
+    if (card) chartsEl.appendChild(card);
   }
-  renderRatingChart(records, range);
-  renderHeatmap();
-  renderWeekdayChart(records, range);
-  renderPeriodChart(records, range);
-  renderTagChart(records, range);
+  // 2. 逐个渲染（隐藏的跳过；hidden 状态先重置再按可见性）
+  const renderers = {
+    monthly: renderMonthlyChart,
+    trend: renderTrendChart,
+    rating: renderRatingChart,
+    heatmap: renderHeatmap,
+    weekday: renderWeekdayChart,
+    period: renderPeriodChart,
+    tags: renderTagChart,
+  };
+  for (const key of order) {
+    const card = chartsEl.querySelector(`[data-chart="${key}"]`);
+    if (!card) continue;
+    card.hidden = visible[key] === false;
+    if (card.hidden) continue;
+    renderers[key](records, range);
+  }
+  // 3. 单月范围：柱状/折线自动隐藏（既有逻辑叠加）
+  if (singleMonth) {
+    const m = chartsEl.querySelector('[data-chart="monthly"]');
+    const t = chartsEl.querySelector('[data-chart="trend"]');
+    if (m) m.hidden = true;
+    if (t) t.hidden = true;
+  }
 }
 
 /* ============ 主流程 ============ */
@@ -514,6 +590,12 @@ export function renderStatsPage() {
   const range = computeRange();
   $("#stats-range-label").textContent = range.label;
   $$("#range-chips .chip").forEach((c) => c.classList.toggle("on", c.dataset.range === rangeKey));
+  // "本年"chip 文案：默认"本年"，选中历史年份显示"2023年"
+  const yearChip = document.querySelector('#range-chips .chip[data-range="year"]');
+  if (yearChip) {
+    const nowYear = new Date().getFullYear();
+    yearChip.textContent = rangeKey === "year" && statsYear !== nowYear ? `${statsYear}年` : "本年";
+  }
   const singleMonth = rangeKey !== "all" && range.start && range.end && range.start.slice(0, 7) === range.end.slice(0, 7);
   $('[data-chart="monthly"]').hidden = singleMonth;
   $('[data-chart="trend"]').hidden = singleMonth;
@@ -540,7 +622,7 @@ export function initStatsPage() {
     if (uiStateTab() === "stats") renderStatsPage();
   });
 
-  // 范围快捷切换
+  // 范围快捷切换（"本年"chip → 年份选择器）
   $("#range-chips").addEventListener("click", (e) => {
     const chip = e.target.closest(".chip");
     if (!chip) return;
@@ -558,19 +640,31 @@ export function initStatsPage() {
       });
       return;
     }
+    if (key === "year") {
+      // 两段式：已是"本年"范围（含历史年）→ 弹年份选择器；否则首次点击直接切"本年"
+      if (rangeKey === "year") {
+        openYearPicker("stats");
+      } else {
+        pickStatsYear(new Date().getFullYear());
+      }
+      return;
+    }
     rangeKey = key;
     renderStatsPage();
   });
 
-  // 热力图 chip 点击 → 年份选择器（近1年 / 当前年及前 3 年）
-  $("#heatmap-switch").addEventListener("click", () => openHeatmapYearPicker());
+  // 热力图 chip 点击 → 年份选择器（近1年 / 当前年及前 3 年；选年份回写统计页）
+  $("#heatmap-switch").addEventListener("click", () => openYearPicker("heatmap"));
   $("#hy-options").addEventListener("click", (e) => {
     const opt = e.target.closest(".hy-opt");
     if (!opt) return;
-    heatMode = opt.dataset.mode;
-    if (heatMode.startsWith("year-")) heatYear = Number(heatMode.slice(5));
     closeHeatmapYearPicker();
-    renderHeatmap();
+    if (yearPickerSource === "stats") {
+      if (opt.dataset.mode === "recent") pickStatsRecent(); // "近一年"：仅热力图
+      else pickStatsYear(Number(opt.dataset.mode.slice(5)));
+    } else {
+      pickHeatmapMode(opt.dataset.mode);
+    }
   });
   $("#hy-cancel").addEventListener("click", closeHeatmapYearPicker);
   $("#hy-mask").addEventListener("click", closeHeatmapYearPicker);
