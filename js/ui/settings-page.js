@@ -95,7 +95,7 @@ function renderSwatches() {
   ).join("");
 }
 
-/** 统一重置可收起面板（文本导入 / 本地备份 / 日志 / 导出 / 标签管理 / GitHub 同步）：
+/** 统一重置可收起面板（文本导入 / 本地备份 / 日志 / 导出 / 标签管理 / 统计图表 / GitHub 同步）：
  *  每次进入设置页强制回到收起态（模块状态与 DOM 同步，避免切 Tab 后状态脱节） */
 function resetCollapsiblePanels() {
   importExpanded = false;
@@ -103,6 +103,7 @@ function resetCollapsiblePanels() {
   logExpanded = false;
   exportExpanded = false;
   tagManageExpanded = false;
+  chartmExpanded = false;
   syncExpanded = false;
   $("#import-panel").hidden = true;
   $("#import-toggle").textContent = "展开";
@@ -114,6 +115,8 @@ function resetCollapsiblePanels() {
   $("#export-toggle").textContent = "展开";
   $("#tag-manage-panel").hidden = true;
   $("#tag-manage-toggle").textContent = "展开";
+  $("#chartm-panel").hidden = true;
+  $("#chartm-toggle").textContent = "展开";
   $("#sync-panel").hidden = true;
   $("#sync-toggle").textContent = "展开";
 }
@@ -1060,6 +1063,82 @@ function bindExportEvents() {
   $("#export-btn").addEventListener("click", handleExport);
 }
 
+/* ============ 统计图表管理（排序 + 显示开关，保存 preferences.chartOrder/chartVisible） ============ */
+
+let chartmExpanded = false;
+
+/** 图表名称（与 index.html #stats-charts 的 data-chart 对应） */
+const CHART_LABELS = {
+  monthly: "每月次数",
+  trend: "频率趋势",
+  rating: "评分分布",
+  heatmap: "日历热力图",
+  weekday: "星期分布",
+  period: "时段分布",
+  tags: "标签排行",
+};
+
+function toggleChartmPanel() {
+  chartmExpanded = !chartmExpanded;
+  $("#chartm-panel").hidden = !chartmExpanded;
+  $("#chartm-toggle").textContent = chartmExpanded ? "收起" : "展开";
+  if (chartmExpanded) renderChartManage();
+}
+
+/** 渲染图表管理列表（名称 + 上移/下移 + 显示开关；首行禁上移、末行禁下移） */
+function renderChartManage() {
+  const order = getPref("chartOrder") || ["monthly", "trend", "rating", "heatmap", "weekday", "period", "tags"];
+  const visible = getPref("chartVisible") || {};
+  const list = $("#chartm-list");
+  if (!order.length) {
+    list.innerHTML = `<div class="tag-manage-empty">暂无图表</div>`;
+    return;
+  }
+  list.innerHTML = order
+    .map(
+      (key, i) => `<div class="chartm-item" data-chart="${key}">
+        <span class="chartm-name">${CHART_LABELS[key] || key}</span>
+        <span class="chartm-ops">
+          <button type="button" class="btn-ghost btn-sm" data-act="up"${i === 0 ? " disabled" : ""}>上移</button>
+          <button type="button" class="btn-ghost btn-sm" data-act="down"${i === order.length - 1 ? " disabled" : ""}>下移</button>
+        </span>
+        <label class="chartm-switch" title="显示/隐藏">
+          <input type="checkbox"${visible[key] !== false ? " checked" : ""} aria-label="显示 ${CHART_LABELS[key] || key}">
+        </label>
+      </div>`
+    )
+    .join("");
+}
+
+/** 绑定图表管理事件（initSettingsPage 内调用） */
+function bindChartManageEvents() {
+  $("#chartm-toggle").addEventListener("click", toggleChartmPanel);
+  $("#chartm-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-act]");
+    if (!btn || btn.disabled) return;
+    const item = btn.closest(".chartm-item");
+    if (!item) return;
+    const order = [...(getPref("chartOrder") || [])];
+    const idx = order.indexOf(item.dataset.chart);
+    if (idx === -1) return;
+    const act = btn.dataset.act;
+    const target = act === "up" ? idx - 1 : idx + 1;
+    if (target < 0 || target >= order.length) return;
+    [order[idx], order[target]] = [order[target], order[idx]];
+    savePref("chartOrder", order);
+    renderChartManage();
+  });
+  $("#chartm-list").addEventListener("change", (e) => {
+    const input = e.target.closest('input[type="checkbox"]');
+    if (!input) return;
+    const item = input.closest(".chartm-item");
+    if (!item) return;
+    const visible = Object.assign({}, getPref("chartVisible") || {});
+    visible[item.dataset.chart] = input.checked;
+    savePref("chartVisible", visible);
+  });
+}
+
 /* ============ 事件绑定（由 app.js 启动时调用一次） ============ */
 
 export function initSettingsPage() {
@@ -1099,6 +1178,9 @@ export function initSettingsPage() {
 
   // 数据管理：导出
   bindExportEvents();
+
+  // 统计图表：排序 / 显示开关
+  bindChartManageEvents();
 
   // 标签管理：新增 / 重命名 / 改色 / 删除
   bindTagManageEvents();
