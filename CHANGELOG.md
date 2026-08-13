@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 0.11.0（2026-08-12）— 图标替换为 Lucide 图标库
+
+### 改进
+
+- **20 个内联图标替换为 Lucide 标准线性图标**（内联、零 CDN，不引外部资源）：
+  - 映射：calendar → calendar；star → star；starFill → star 闭合路径 + fill="currentColor" 实心（与 svg() 工厂 fill="none" 冲突通过工厂 fill 参数处理）；plus → plus；edit → pencil；trash → trash-2；search → search；filter → filter（标准漏斗）；tag → tag；settings → settings；chart → chart-column；export → download；import → upload；backup → database-backup；sync → refresh-cw；chevronLeft → chevron-left；chevronRight → chevron-right；close → x；check → check；empty → inbox
+- **svg() 工厂适配 Lucide 标准**：stroke-width 1.8 → 2、viewBox 24、stroke-linecap/linejoin round、fill="none" 默认（starFill 传 "currentColor" 实心覆盖）；图标名称不变（引用无需改）
+
+## 0.10.0（2026-08-12）— 数据导出上线
+
+### 新增
+
+- **数据管理分组实现"导出数据"**（展开式条目，与文本导入交互一致）：
+  - **格式选择**：JSON / CSV / TXT（chip 单选，默认 JSON）
+  - **筛选**：时间范围（起止 date 输入，默认全部）、评分（全部 / 1-5 星下拉）、标签（全部 / 具体标签下拉，动态填充现有标签）
+  - **脱敏开关**：checkbox（"仅保留日期与评分，用于分享"）→ ExportModule.applyDesensitize
+  - **导出按钮**：ExportModule.applyFilters 筛选 → toJSON / toCSV / toTXT → Blob 下载（CSV 前加 UTF-8 BOM `\uFEFF` 兼容 Excel；文件名 `dotoday_export_YYYYMMDD_HHMMSS.json/.csv/.txt`）→ Toast"已导出 N 条记录（格式，已脱敏）"；空数据 / 筛选结果为空 → 提示
+  - 移除数据管理分组"导出…将在后续版本开放"占位文本
+- **js/export.js**（新）：applyFilters（时间范围含端点 / 评分精确 / 标签任一命中）、applyDesensitize、toJSON（含 exportedAt/count）、toCSV（表头 + 字段转义，无 BOM 由 UI 加）、toTXT（每行完整字段）；契约，fix-1 并行实现可覆盖
+- 导出面板接入 resetCollapsiblePanels 统一收起机制
+
 ## 0.9.0（2026-08-12）— 数据管理：本地备份 + 日志查看
 
 ### 新增
