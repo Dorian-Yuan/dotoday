@@ -1,6 +1,6 @@
 # DoToday（做了么）- Web PWA 应用开发计划
 
-> 版本: 0.9.0 | 日期: 2026-08-11 | 开发者: Hau
+> 版本: 0.11.0 | 日期: 2026-08-11 | 开发者: Hau
 >
 > 本文档经过与开发者的深度 brainstorming 修订（2026-08-10），
 > 全部需求点均已逐条确认。变更历史见文末「十一、文档修订记录」。
@@ -1032,6 +1032,20 @@ ServiceWorker
 ***
 
 ## 十一、文档修订记录
+
+### 0.11.0（2026-08-11）— 图标替换为 Lucide（v0.11.0 功能）
+
+**修改**：
+* 20 个内联图标全部替换为 **Lucide 图标库**（标准线性图标：viewBox 24 / stroke-width 2 / round 端点 / currentColor）——离线内联、零 CDN（保持 plan 无外部依赖约束）
+* 图标映射：calendar/star/plus/pencil(edit)/trash-2(trash)/search/filter/tag/settings/chart-column(chart)/download(export)/upload(import)/database-backup(backup)/refresh-cw(sync)/chevron-left/chevron-right/x(close)/check/inbox(empty)；starFill 用 STAR_PATH + fill="currentColor" 实心
+* svg() 工厂适配 Lucide 标准（stroke-width 1.8→2）；图标名称不变、全站引用无需改
+
+### 0.10.0（2026-08-11）— 数据导出上线（v0.10.0 功能）
+
+**新增**（补齐规划 2.5 导出功能，移除数据管理"导出后续开放"占位）：
+* **js/export.js 纯逻辑模块**（applyFilters/applyDesensitize/toJSON/toCSV/toTXT）+ 单元测试 16 例（全量 92/92）
+* 设置页数据管理 → **导出**：格式 JSON/CSV/TXT（CSV 带 UTF-8 BOM Excel 兼容）、筛选（时间范围/评分/标签任一）、脱敏开关（仅日期+评分）、Blob 下载（`dotoday_export_时间戳.ext`）、空数据提示
+* 数据管理分组全部功能上线（导入/导出/备份/日志）
 
 ### 0.9.0（2026-08-11）— 数据管理收尾（v0.9.0 功能）
 
