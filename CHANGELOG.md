@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.11.1（2026-08-13）— Service Worker 更新机制修复
+
+### 修复
+
+- **线上更新不生效（用户看不到新版）**：sw.js 的缓存版本号原先动态 import 自 config.js——浏览器只在 sw.js 文件本身字节变化时才更新 Service Worker，而 import 语句字节不变 → SW 永不重新安装 → 旧缓存 cache-first 永远返回旧资源。修复：**CACHE_VERSION 在 sw.js 内硬编码**（发布时递增），每次发布 sw.js 字节变化 → 浏览器检测更新 → 新缓存安装 + 旧缓存清理
+- **CORE_ASSETS 预缓存清单补齐**（新增 sync.js/export.js/stats.js/parse-import.js/sync-crypto.js/stats-page.js/settings-page.js/date-range-picker.js）
+- **新版本提示**：SW 激活后向页面发送 SW_UPDATE_READY → Toast"发现新版本，请刷新页面后使用"
+
 ## 0.11.0（2026-08-12）— 图标替换为 Lucide 图标库
 
 ### 改进
