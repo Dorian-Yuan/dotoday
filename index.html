@@ -185,7 +185,19 @@
               <span class="settings-row-label">图表配色</span>
               <span class="settings-row-hint">统计页图表的深浅配色</span>
             </div>
-            <div class="settings-swatches" id="heatmap-swatches" role="radiogroup" aria-label="热力图主色"></div>
+            <div class="settings-swatches" id="heatmap-swatches" role="radiogroup" aria-label="图表配色"></div>
+          </div>
+
+          <!-- 统计图表（排序 + 显示开关，可展开/收起） -->
+          <div class="settings-row settings-row-stack">
+            <div class="settings-row-main">
+              <span class="settings-row-label">统计图表</span>
+              <span class="settings-row-hint">排序与显示开关，即时生效</span>
+            </div>
+            <button type="button" class="btn-ghost btn-sm import-toggle" id="chartm-toggle">展开</button>
+          </div>
+          <div class="import-panel" id="chartm-panel" hidden>
+            <div class="chartm-list" id="chartm-list"></div>
           </div>
         </section>
 
