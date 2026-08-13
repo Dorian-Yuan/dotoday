@@ -2265,6 +2265,59 @@ textarea::placeholder,
   color: var(--text-muted);
 }
 
+/* ============ 数据管理：导出（设置页） ============ */
+.export-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.export-label {
+  flex: 0 0 58px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.export-date-range {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.export-date {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  font-size: 12px;
+  padding: 0 6px;
+}
+.export-sep {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.export-select {
+  flex: 1 1 auto;
+  height: 30px;
+  font-size: 12px;
+  padding: 0 6px;
+  max-width: 180px;
+}
+.export-desensitize {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.export-desensitize input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* ============ 响应式（桌面） ============ */
 @media (min-width: 768px) {
   body {
