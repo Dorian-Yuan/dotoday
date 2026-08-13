@@ -12,7 +12,7 @@
  */
 
 /** ⚠️ 发布时必须更新此常量（与 config.js APP_VERSION 保持同步） */
-const CACHE_VERSION = "v0.11.1";
+const CACHE_VERSION = "v0.12.1";
 const CACHE_NAME = "dotoday-" + CACHE_VERSION;
 
 /** 核心资源清单（与 index.html / js 引用保持一致，发布时核对） */
